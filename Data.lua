@@ -402,17 +402,18 @@ ns.DPS_RATE = { melee = 6, hunter = 8, caster = 0.5 }
 
 -- What each class may wear or wield, by item class and subclass.
 -- A negative armour subclass is a cloak, ring, neck or trinket,
--- which carries no restriction at all.
+-- which carries no restriction at all. armorAt is the level a
+-- class is trained in that armour type, for mail and plate at 40.
 ns.PROFICIENCY = {
-    ["WARRIOR"] = { armor = { 0, 1, 2, 3, 4, 6 }, weapon = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 10, 13, 15, 16, 18 } },
-    ["WARRIOR_PROT"] = { armor = { 0, 1, 2, 3, 4, 6 }, weapon = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 10, 13, 15, 16, 18 } },
-    ["PALADIN"] = { armor = { 0, 1, 2, 3, 4, 6, 7 }, weapon = { 0, 1, 4, 5, 6, 7, 8 } },
-    ["PALADIN_HOLY"] = { armor = { 0, 1, 2, 3, 4, 6, 7 }, weapon = { 0, 1, 4, 5, 6, 7, 8 } },
-    ["HUNTER"] = { armor = { 0, 1, 2, 3 }, weapon = { 0, 1, 2, 3, 6, 7, 8, 10, 13, 15, 18 } },
+    ["WARRIOR"] = { armor = { 0, 1, 2, 3, 4, 6 }, weapon = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 10, 13, 15, 16, 18 }, armorAt = { [4] = 40 } },
+    ["WARRIOR_PROT"] = { armor = { 0, 1, 2, 3, 4, 6 }, weapon = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 10, 13, 15, 16, 18 }, armorAt = { [4] = 40 } },
+    ["PALADIN"] = { armor = { 0, 1, 2, 3, 4, 6, 7 }, weapon = { 0, 1, 4, 5, 6, 7, 8 }, armorAt = { [4] = 40 } },
+    ["PALADIN_HOLY"] = { armor = { 0, 1, 2, 3, 4, 6, 7 }, weapon = { 0, 1, 4, 5, 6, 7, 8 }, armorAt = { [4] = 40 } },
+    ["HUNTER"] = { armor = { 0, 1, 2, 3 }, weapon = { 0, 1, 2, 3, 6, 7, 8, 10, 13, 15, 18 }, armorAt = { [3] = 40 } },
     ["ROGUE"] = { armor = { 0, 1, 2 }, weapon = { 0, 2, 3, 4, 7, 13, 15, 16, 18 } },
     ["PRIEST"] = { armor = { 0, 1 }, weapon = { 4, 10, 15, 19 } },
-    ["SHAMAN"] = { armor = { 0, 1, 2, 3, 6, 9 }, weapon = { 0, 1, 4, 5, 10, 13, 15 } },
-    ["SHAMAN_CASTER"] = { armor = { 0, 1, 2, 3, 6, 9 }, weapon = { 0, 1, 4, 5, 10, 13, 15 } },
+    ["SHAMAN"] = { armor = { 0, 1, 2, 3, 6, 9 }, weapon = { 0, 1, 4, 5, 10, 13, 15 }, armorAt = { [3] = 40 } },
+    ["SHAMAN_CASTER"] = { armor = { 0, 1, 2, 3, 6, 9 }, weapon = { 0, 1, 4, 5, 10, 13, 15 }, armorAt = { [3] = 40 } },
     ["MAGE"] = { armor = { 0, 1 }, weapon = { 7, 10, 15, 19 } },
     ["WARLOCK"] = { armor = { 0, 1 }, weapon = { 7, 10, 15, 19 } },
     ["DRUID"] = { armor = { 0, 1, 2, 8 }, weapon = { 4, 5, 6, 10, 13, 15 } },

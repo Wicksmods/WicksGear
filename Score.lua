@@ -239,7 +239,12 @@ function S:Usable(info)
         -- Cloaks, rings, necks and trinkets carry a negative subclass and
         -- no restriction. Only a positive one is a real armour type.
         if not info.subClassID or info.subClassID <= 0 then return true end
-        return has(prof.armor, info.subClassID)
+        if not has(prof.armor, info.subClassID) then return false end
+        -- Mail and plate are trained at forty. Telling a level twenty
+        -- hunter to go and find mail is worse than saying nothing.
+        local at = prof.armorAt and prof.armorAt[info.subClassID]
+        if at and (UnitLevel("player") or 1) < at then return false end
+        return true
     end
     if info.classID == WEAPON_CLASS then
         return has(prof.weapon, info.subClassID)
