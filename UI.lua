@@ -329,7 +329,7 @@ function UI:Refresh()
     ns.Score:Preload(ns.AllItemIDs(), function()
         if UI.active == "browse" then UI:FillBrowse()
         elseif UI.active == "compare" then
-            if not ns.Doll.pane then ns.Doll:Build(UI.panes.compare) else ns.Doll:Refresh() end
+            if ns.Doll:Ensure() then ns.Doll:Refresh() end
         else UI:FillUpgrades() end
     end)
 end

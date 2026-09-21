@@ -1,5 +1,12 @@
 # Wick's Gear
 
+## 0.2.1
+
+- Fixed: right-clicking a piece to try it on threw an error unless you
+  had opened the Compare tab at least once first. The paperdoll is
+  built on demand now. The tests had been opening the tab before trying
+  anything, which is not the order anyone actually does it in.
+
 ## 0.2.0
 
 - A Compare tab: a paperdoll with your character on it. Right-click

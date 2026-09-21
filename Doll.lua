@@ -89,7 +89,20 @@ local function makeSlot(parent, slotId)
     return b
 end
 
+-- The paperdoll is built the first time its tab is drawn, but anything
+-- can ask to try a piece on before that has happened: right-clicking a
+-- row builds nothing by itself. So build on demand, and do nothing at
+-- all if there is not yet a pane to build into.
+function Doll:Ensure()
+    if self.pane then return true end
+    local pane = ns.UI and ns.UI.panes and ns.UI.panes.compare
+    if not pane then return false end
+    self:Build(pane)
+    return true
+end
+
 function Doll:Refresh()
+    if not self.slots then return end
     local S = ns.Score
     for slotId, b in pairs(self.slots) do
         local trying = self.trying[slotId]
@@ -126,7 +139,7 @@ function Doll:TryOn(itemID)
     local _, link = pcall(select, 2, C_Item.GetItemInfo(itemID))
     self.trying[info.slot] = { id = itemID, link = link, icon = info.icon }
     ns.UI:Select("compare")
-    self:Refresh()
+    if self:Ensure() then self:Refresh() end
     return true
 end
 
