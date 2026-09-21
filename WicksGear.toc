@@ -2,7 +2,7 @@
 ## Title: Wick's Gear
 ## Notes: What to chase while levelling, scored against what you are wearing, and a browser for what drops where. Item names and stats come from the client, so nothing goes stale.
 ## Author: Wick
-## Version: 0.2.2
+## Version: 0.3.0
 ## Dependencies: WickCore
 ## SavedVariables: WicksGearSaved
 ## X-Website: https://wicksmods.com

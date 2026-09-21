@@ -197,6 +197,11 @@ function UI:FillBrowse()
             head:Show()
 
             if pane.open[dungeon] then
+                -- Looking at a dungeon puts its loot at the front of the
+                -- queue, ahead of the thirteen you are not looking at.
+                local want = {}
+                for _, entry in ipairs(d.items) do want[#want + 1] = entry.id end
+                ns.Score:WantFirst(want)
                 for _, entry in ipairs(d.items) do
                     local info = S:Info(entry.id)
                     i = i + 1
@@ -325,13 +330,14 @@ end
 
 function UI:Refresh()
     if not self.panel or not self.panel:IsShown() then return end
-    -- Item data has to be in memory before anything can be scored.
-    ns.Score:Preload(ns.AllItemIDs(), function()
-        if UI.active == "browse" then UI:FillBrowse()
-        elseif UI.active == "compare" then
-            if ns.Doll:Ensure() then ns.Doll:Refresh() end
-        else UI:FillUpgrades() end
-    end)
+    -- Draw now with whatever the client already knows, and ask for the
+    -- rest in the background. Waiting for all of it is what made this
+    -- feel broken: the whole list sat empty for the slowest item.
+    ns.Score:Want(ns.AllItemIDs())
+    if self.active == "browse" then self:FillBrowse()
+    elseif self.active == "compare" then
+        if ns.Doll:Ensure() then ns.Doll:Refresh() end
+    else self:FillUpgrades() end
 end
 
 -- The server sends item data back a few at a time, and whatever had not

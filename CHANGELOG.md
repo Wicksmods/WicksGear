@@ -1,5 +1,16 @@
 # Wick's Gear
 
+## 0.3.0
+
+- Items load properly now. Opening the window used to ask the server
+  for all 272 at once, which it throttles, so most requests were
+  dropped and rows sat reading "loading..." a minute later. They go out
+  a dozen at a time instead, and whatever dungeon you have open jumps
+  the queue.
+- The list draws immediately with whatever the client already knows
+  rather than waiting for the slowest item, and fills in as the rest
+  arrives.
+
 ## 0.2.2
 
 - Fixed: items still arriving from the server stayed as "item 9454"

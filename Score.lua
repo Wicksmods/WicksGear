@@ -87,46 +87,80 @@ end
 -- Loading
 -- ============================================================
 
-local pending, waiting = {}, false
+-- Asking for item data
+-- ============================================================
+-- The client answers these from the server, and it throttles. Asking
+-- for all two hundred and seventy at the moment the window opens got
+-- most of them dropped and left rows reading "loading..." a minute
+-- later, which is worse than asking slowly.
+--
+-- So they go in a queue and leave a handful at a time. Nothing waits
+-- for the whole set: each answer redraws whatever is on screen, so the
+-- list fills in as it arrives.
 
--- Ask the client for everything we are about to score. Items arrive over
--- several frames, so the caller is told once the queue has drained.
-function S:Preload(ids, onDone)
-    local need = 0
-    for _, id in ipairs(ids) do
-        if not C_Item.IsItemDataCachedByID(id) then
-            need = need + 1
-            pending[id] = true
-            C_Item.RequestLoadItemDataByID(id)
+local queue, queued, pumping = {}, {}, false
+local BATCH, EVERY = 12, 0.2
+
+local function cached(id)
+    if C_Item.IsItemDataCachedByID and C_Item.IsItemDataCachedByID(id) then
+        -- Cached is not the same as answerable: ask for the name too,
+        -- since that is what the list actually shows.
+        return C_Item.GetItemInfo(id) ~= nil
+    end
+    return C_Item.GetItemInfo(id) ~= nil
+end
+S.Cached = cached
+
+local function pump()
+    local sent = 0
+    while sent < BATCH do
+        local id = table.remove(queue)
+        if not id then break end
+        queued[id] = nil
+        if not cached(id) then
+            pcall(C_Item.RequestLoadItemDataByID, id)
+            sent = sent + 1
         end
     end
-    if need == 0 then
-        if onDone then onDone() end
-        return
+    if #queue > 0 then
+        C_Timer.After(EVERY, pump)
+    else
+        pumping = false
     end
-    self.onDone = onDone
-    if not waiting then
-        waiting = true
-        ns.RegisterEvents({ "ITEM_DATA_LOAD_RESULT" })
-    end
-    -- A backstop: an id the server will not answer for would otherwise
-    -- leave the panel waiting forever.
-    C_Timer.After(3, function()
-        if S.onDone then
-            local cb = S.onDone
-            S.onDone = nil
-            wipe(pending)
-            cb()
-        end
-    end)
 end
 
-function S:OnItemLoaded(id)
-    pending[id] = nil
-    if next(pending) == nil and self.onDone then
-        local cb = self.onDone
-        self.onDone = nil
-        cb()
+-- Ask for these, eventually. Returns how many are still unknown, so a
+-- caller can say so rather than looking broken.
+function S:Want(ids)
+    local missing = 0
+    for _, id in ipairs(ids) do
+        if not cached(id) then
+            missing = missing + 1
+            if not queued[id] then
+                queued[id] = true
+                queue[#queue + 1] = id
+            end
+        end
+    end
+    if missing > 0 and not pumping then
+        pumping = true
+        C_Timer.After(0, pump)
+    end
+    return missing
+end
+
+-- Put what is on screen at the front, so looking at a dungeon fetches
+-- that dungeon before the thirteen you are not looking at.
+function S:WantFirst(ids)
+    for _, id in ipairs(ids) do
+        if not cached(id) and not queued[id] then
+            queued[id] = true
+            table.insert(queue, id)      -- the end is the front: pump pops
+        end
+    end
+    if not pumping then
+        pumping = true
+        C_Timer.After(0, pump)
     end
 end
 
@@ -274,14 +308,8 @@ function S:Init()
     -- Two events, because the two dialects announce this differently and
     -- either may be the one this build sends.
     ns.RegisterEvents({ "GET_ITEM_INFO_RECEIVED" })
-    ns:On("ITEM_DATA_LOAD_RESULT", function(_, id, success)
-        if success ~= false then S:OnItemLoaded(id) end
-        ns.UI:ItemArrived()
-    end)
-    ns:On("GET_ITEM_INFO_RECEIVED", function(_, id, success)
-        if success ~= false then S:OnItemLoaded(id) end
-        ns.UI:ItemArrived()
-    end)
+    ns:On("ITEM_DATA_LOAD_RESULT", function() ns.UI:ItemArrived() end)
+    ns:On("GET_ITEM_INFO_RECEIVED", function() ns.UI:ItemArrived() end)
     -- Redraw the paperdoll when the character underneath it changes.
     ns.RegisterEvents({ "PLAYER_EQUIPMENT_CHANGED", "UNIT_STATS" })
     local function changed() if ns.Doll and ns.Doll.pane then ns.Doll:Refresh() end end
