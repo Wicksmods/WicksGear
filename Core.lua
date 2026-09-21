@@ -53,8 +53,13 @@ function ns.db() return A.db and A.db.profile or {} end
 -- id -> the entry that carries its fallback name and stats, so anything
 -- can reach them without walking every dungeon again.
 ns.ENTRY = {}
-for _, d in pairs(ns.DUNGEONS) do
-    for _, it in ipairs(d.items) do ns.ENTRY[it.id] = it end
+for name, d in pairs(ns.DUNGEONS) do
+    for _, it in ipairs(d.items) do
+        -- Where it came from is part of describing it, and the data file
+        -- is keyed the other way round.
+        it.dungeon = name
+        ns.ENTRY[it.id] = it
+    end
 end
 
 -- Every id in the data, once, for preloading.

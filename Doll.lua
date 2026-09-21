@@ -70,7 +70,15 @@ local function makeSlot(parent, slotId)
         local link = trying and trying.link or GetInventoryItemLink("player", s.slotId)
         GameTooltip:SetOwner(s, "ANCHOR_RIGHT")
         if link then
-            GameTooltip:SetHyperlink(link)
+            -- What you are wearing is always cached, so that one can go
+            -- straight to the game. A piece being tried on may be one
+            -- this character has never met, which the game cannot
+            -- describe, so it goes through our own describer.
+            if trying then
+                ns.Score:FillTooltip(GameTooltip, trying.id, link)
+            else
+                GameTooltip:SetHyperlink(link)
+            end
             if trying then
                 GameTooltip:AddLine(" ")
                 GameTooltip:AddLine("Being tried on. Right-click to put it back.", 0.5, 0.5, 0.5)

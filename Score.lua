@@ -109,7 +109,10 @@ local function cached(id)
     end
     return C_Item.GetItemInfo(id) ~= nil
 end
-S.Cached = cached
+-- A method, because every other entry point here is one and calling
+-- this with a dot by mistake is silent: the id becomes the table and
+-- the client is asked about nothing.
+function S:Cached(id) return cached(id) end
 
 local function pump()
     local sent = 0
@@ -323,6 +326,119 @@ local STAT_KEY = {
     ITEM_MOD_SPIRIT_SHORT    = "spi",
     RESISTANCE0_NAME         = "armor",
 }
+-- ============================================================
+-- Describing an item the client cannot
+-- ============================================================
+-- On this beta the client only knows an item the character has actually
+-- encountered. Asking for a tooltip on any other one gives "Retrieving
+-- item information" and keeps giving it, because the data is never
+-- coming: there is nothing to wait for. So when the client cannot
+-- answer, the tooltip is built from what we shipped instead.
+--
+-- The client is always asked first. Its answer is the one this server
+-- is using, and ours is a printed copy of a website.
+
+local QUALITY_COLOR = {
+    poor = { 0.62, 0.62, 0.62 }, common = { 1, 1, 1 },
+    uncommon = { 0.12, 1, 0 },   rare = { 0, 0.44, 0.87 },
+    epic = { 0.64, 0.21, 0.93 }, legendary = { 1, 0.50, 0 },
+}
+
+function S:FillTooltip(tt, id, link)
+    if self:Cached(id) and link then
+        tt:SetHyperlink(link)
+        return true
+    end
+
+    local e = ns.ENTRY[id]
+    if not e then
+        -- Not ours either, so the placeholder is the honest answer.
+        tt:SetHyperlink(link or ("item:" .. id))
+        return false
+    end
+
+    local c = QUALITY_COLOR[e.q or "common"] or QUALITY_COLOR.common
+    tt:SetText(e.name ~= "" and e.name or ("Item " .. id), c[1], c[2], c[3])
+    if e.slot then tt:AddLine(e.slot, 1, 1, 1) end
+    if e.req and e.req > 0 then
+        -- Red when you cannot wear it yet, the way the game does it.
+        local ok = e.req <= (UnitLevel("player") or 1)
+        tt:AddLine("Requires Level " .. e.req, 1, ok and 1 or 0.13, ok and 1 or 0.13)
+    end
+
+    local st = e.stats
+    if st then
+        if st.armor then tt:AddLine(st.armor .. " Armor", 1, 1, 1) end
+        for _, key in ipairs(S.STAT_ORDER) do
+            if key ~= "armor" and st[key] then
+                tt:AddLine(("+%d %s"):format(st[key], S.STAT_LABEL[key]), 0, 1, 0)
+            end
+        end
+    end
+
+    tt:AddLine(" ")
+    if e.how == "quest" then
+        tt:AddLine(("Quest reward in %s"):format(e.dungeon or "a dungeon")
+            .. (e.from and (", from " .. e.from) or ""), 0.31, 0.78, 0.47, true)
+    else
+        tt:AddLine(("Drops in %s"):format(e.dungeon or "a dungeon")
+            .. (e.from and (", from " .. e.from) or ""), 0.31, 0.78, 0.47, true)
+    end
+    tt:AddLine("Described from Wick's own data. This character has never seen the item, so the game cannot describe it.", 0.5, 0.5, 0.5, true)
+    self:AddComparison(tt, id)
+    return false
+end
+
+-- The game compares an item against what you are wearing when you hold
+-- shift. It cannot do that for an item it has never heard of, and those
+-- are exactly the ones this list is full of, so the comparison is drawn
+-- here instead. It is also the more useful direction: the difference,
+-- rather than two tooltips to read against each other.
+function S:AddComparison(tt, id)
+    local e = ns.ENTRY[id]
+    local info = self:Info(id)
+    local slot = info and info.slot
+    if not e or not slot then return end
+    local worn = self:EquippedStats(slot)
+    local new = e.stats or {}
+    local bits = {}
+    for _, key in ipairs(S.STAT_ORDER) do
+        local d = (new[key] or 0) - (worn[key] or 0)
+        if d ~= 0 then
+            bits[#bits + 1] = { key = key, d = d }
+        end
+    end
+    tt:AddLine(" ")
+    if #bits == 0 then
+        tt:AddLine("No change from what you are wearing.", 0.5, 0.5, 0.5)
+        return
+    end
+    tt:AddLine("Against what you are wearing", 0.83, 0.78, 0.63)
+    for _, b in ipairs(bits) do
+        local up = b.d > 0
+        tt:AddLine(("%+d %s"):format(b.d, S.STAT_LABEL[b.key]),
+            up and 0.31 or 0.90, up and 0.78 or 0.30, up and 0.47 or 0.30)
+    end
+end
+
+-- A link you can put in chat.
+--
+-- The client can only build one for an item it has met, and on this
+-- beta that is a minority of the list. A hand-built link carries the id
+-- and the name, which is all the receiving client needs: theirs looks
+-- the item up for itself.
+function S:ChatLink(id)
+    local ok, _, link = pcall(C_Item.GetItemInfo, id)
+    if ok and link then return link end
+    local e = ns.ENTRY[id]
+    if not e or not e.name or e.name == "" then return nil end
+    local c = QUALITY_COLOR[e.q or "common"] or QUALITY_COLOR.common
+    -- %x wants whole numbers; the palette is fractions.
+    local hex = ("%02x%02x%02x"):format(
+        math.floor(c[1] * 255 + 0.5), math.floor(c[2] * 255 + 0.5), math.floor(c[3] * 255 + 0.5))
+    return ("|cff%s|Hitem:%d|h[%s]|h|r"):format(hex, id, e.name)
+end
+
 S.STAT_ORDER = { "str", "agi", "sta", "int", "spi", "armor" }
 S.STAT_LABEL = { str = "Strength", agi = "Agility", sta = "Stamina",
                  int = "Intellect", spi = "Spirit", armor = "Armor" }

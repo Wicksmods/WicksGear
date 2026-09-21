@@ -64,8 +64,7 @@ local function acquire(pane, i)
     r:SetScript("OnEnter", function(s)
         if not s.link and not s.itemID then return end
         GameTooltip:SetOwner(s, "ANCHOR_RIGHT")
-        if s.link then GameTooltip:SetHyperlink(s.link)
-        else GameTooltip:SetHyperlink("item:" .. s.itemID) end
+        ns.Score:FillTooltip(GameTooltip, s.itemID, s.link)
         if s.note then
             GameTooltip:AddLine(" ")
             GameTooltip:AddLine(s.note, 0.5, 0.5, 0.5, true)
@@ -76,13 +75,17 @@ local function acquire(pane, i)
     r:RegisterForClicks("AnyUp")
     r:RegisterForDrag("LeftButton")
     r:SetScript("OnClick", function(s, button)
-        if button == "RightButton" then
+        if button == "RightButton" and not IsShiftKeyDown() then
             if s.itemID then ns.Doll:TryOn(s.itemID) end
             return
         end
-        -- Shift-click to link, the way every other list in the game works.
-        if IsShiftKeyDown() and s.link and ChatEdit_InsertLink then
-            ChatEdit_InsertLink(s.link)
+        -- Shift-click to link, the way every other list in the game
+        -- works. s.link may be the bare "item:id" stand-in used for
+        -- weighing, which is not a chat link, so ask for a real one.
+        if IsShiftKeyDown() and ChatEdit_InsertLink then
+            local link = ns.Score:ChatLink(s.itemID)
+            if link then ChatEdit_InsertLink(link)
+            else ns.A:Print("no link for that one: the client has never seen it and it is not in our data either.") end
         end
     end)
     -- Our own drag, between our own frames: the row puts an id down and
