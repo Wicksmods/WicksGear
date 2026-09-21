@@ -231,6 +231,36 @@ function S:WeaponDamage(link)
     return nil
 end
 
+-- The item's own stats, under names the paperdoll can subtract.
+local STAT_KEY = {
+    ITEM_MOD_STRENGTH_SHORT  = "str",
+    ITEM_MOD_AGILITY_SHORT   = "agi",
+    ITEM_MOD_STAMINA_SHORT   = "sta",
+    ITEM_MOD_INTELLECT_SHORT = "int",
+    ITEM_MOD_SPIRIT_SHORT    = "spi",
+    RESISTANCE0_NAME         = "armor",
+}
+S.STAT_ORDER = { "str", "agi", "sta", "int", "spi", "armor" }
+S.STAT_LABEL = { str = "Strength", agi = "Agility", sta = "Stamina",
+                 int = "Intellect", spi = "Spirit", armor = "Armor" }
+
+function S:NormalStats(link)
+    local out = {}
+    if not link then return out end
+    local stats = C_Item.GetItemStats(link)
+    if not stats then return out end
+    for key, value in pairs(stats) do
+        local short = STAT_KEY[key]
+        if short and type(value) == "number" then out[short] = value end
+    end
+    return out
+end
+
+function S:EquippedStats(slot)
+    if not slot then return {} end
+    return self:NormalStats(GetInventoryItemLink("player", slot))
+end
+
 function S:EquippedValue(slot)
     if not slot then return 0, nil end
     local link = GetInventoryItemLink("player", slot)
@@ -244,4 +274,9 @@ function S:Init()
     ns:On("ITEM_DATA_LOAD_RESULT", function(_, id, success)
         if success ~= false then S:OnItemLoaded(id) end
     end)
+    -- Redraw the paperdoll when the character underneath it changes.
+    ns.RegisterEvents({ "PLAYER_EQUIPMENT_CHANGED", "UNIT_STATS" })
+    local function changed() if ns.Doll and ns.Doll.pane then ns.Doll:Refresh() end end
+    ns:On("PLAYER_EQUIPMENT_CHANGED", changed)
+    ns:On("UNIT_STATS", function(_, unit) if unit == "player" then changed() end end)
 end

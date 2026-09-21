@@ -11,7 +11,7 @@ ns.UI = UI
 
 local ROW_H = 20
 local TAB_H = 22
-local WIDTH, HEIGHT = 430, 400
+local WIDTH, HEIGHT = 520, 420
 
 local function tint(fs, c) fs:SetTextColor(c[1], c[2], c[3], c[4] or 1) end
 
@@ -73,12 +73,22 @@ local function acquire(pane, i)
         GameTooltip:Show()
     end)
     r:SetScript("OnLeave", function() GameTooltip:Hide() end)
-    r:SetScript("OnClick", function(s)
+    r:RegisterForClicks("AnyUp")
+    r:RegisterForDrag("LeftButton")
+    r:SetScript("OnClick", function(s, button)
+        if button == "RightButton" then
+            if s.itemID then ns.Doll:TryOn(s.itemID) end
+            return
+        end
         -- Shift-click to link, the way every other list in the game works.
         if IsShiftKeyDown() and s.link and ChatEdit_InsertLink then
             ChatEdit_InsertLink(s.link)
         end
     end)
+    -- Our own drag, between our own frames: the row puts an id down and
+    -- a paperdoll slot picks it up.
+    r:SetScript("OnDragStart", function(s) UI.dragging = s.itemID end)
+    r:SetScript("OnDragStop", function() UI.dragging = nil end)
     pane.rows[i] = r
     return r
 end
@@ -222,7 +232,7 @@ end
 -- Frame
 -- ============================================================
 
-local function makePane(parent)
+local function makePane(parent, plain)
     local pane = CreateFrame("Frame", nil, parent)
     pane:SetPoint("TOPLEFT", 10, -Chrome.HEADER_H - TAB_H - 26)
     pane:SetPoint("BOTTOMRIGHT", -10, 10)
@@ -232,6 +242,12 @@ local function makePane(parent)
     pane.head:SetPoint("TOPLEFT", 12, -Chrome.HEADER_H - TAB_H - 10)
     pane.head:SetWidth(WIDTH - 24)
     pane.head:SetJustifyH("LEFT")
+
+    if plain then
+        -- The paperdoll lays itself out; it wants no scroll frame.
+        pane.head:SetText("")
+        return pane
+    end
 
     local clip = CreateFrame("ScrollFrame", nil, pane)
     clip:SetAllPoints()
@@ -271,7 +287,7 @@ function UI:Build()
 
     self.panes, self.tabs = {}, {}
     local x = 8
-    for _, def in ipairs({ { "upgrades", "Upgrades" }, { "browse", "Browse" } }) do
+    for _, def in ipairs({ { "upgrades", "Upgrades" }, { "browse", "Browse" }, { "compare", "Compare" } }) do
         local b = CreateFrame("Button", nil, strip)
         b:SetSize(80, TAB_H)
         b:SetPoint("LEFT", x, 0)
@@ -285,7 +301,7 @@ function UI:Build()
         b.under:Hide()
         b:SetScript("OnClick", function() UI:Select(def[1]) end)
         self.tabs[def[1]] = b
-        self.panes[def[1]] = makePane(p)
+        self.panes[def[1]] = makePane(p, def[1] == "compare")
         x = x + 84
     end
 
@@ -311,7 +327,10 @@ function UI:Refresh()
     if not self.panel or not self.panel:IsShown() then return end
     -- Item data has to be in memory before anything can be scored.
     ns.Score:Preload(ns.AllItemIDs(), function()
-        if UI.active == "browse" then UI:FillBrowse() else UI:FillUpgrades() end
+        if UI.active == "browse" then UI:FillBrowse()
+        elseif UI.active == "compare" then
+            if not ns.Doll.pane then ns.Doll:Build(UI.panes.compare) else ns.Doll:Refresh() end
+        else UI:FillUpgrades() end
     end)
 end
 
