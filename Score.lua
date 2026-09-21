@@ -168,6 +168,35 @@ end
 -- Reading an item
 -- ============================================================
 
+-- Names and links without waiting on the server
+-- ============================================================
+-- GetItemInfo needs the item to have arrived from the server, and on
+-- this beta a lot of them simply do not. Two ways round it, both
+-- answered out of the client's own files:
+--
+--   GetItemNameByID gives the name on its own.
+--   "item:1234" is a valid hyperlink string, and the stat reader takes
+--   a string, so stats can be read without a full item ever landing.
+--
+-- Whatever the real link turns up, it is preferred, since it carries
+-- enchants and suffixes. These are the floor, not the ceiling.
+
+function S:LinkFor(id)
+    local ok, _, link = pcall(C_Item.GetItemInfo, id)
+    if ok and link then return link end
+    return "item:" .. tostring(id)
+end
+
+function S:NameFor(id)
+    if C_Item.GetItemNameByID then
+        local ok, name = pcall(C_Item.GetItemNameByID, id)
+        if ok and type(name) == "string" and name ~= "" then return name end
+    end
+    local ok, name = pcall(C_Item.GetItemInfo, id)
+    if ok and type(name) == "string" and name ~= "" then return name end
+    return nil
+end
+
 function S:Info(id)
     -- GetItemInfoInstant answers without the item being cached, which is
     -- enough to know the slot and whether the class may use it.

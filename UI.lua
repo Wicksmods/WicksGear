@@ -115,7 +115,7 @@ function UI:FillUpgrades()
             if entry.req <= cap then
                 local info = S:Info(entry.id)
                 if info and info.slot and S:Usable(info) then
-                    local _, link = pcall(select, 2, C_Item.GetItemInfo(entry.id))
+                    local link = S:LinkFor(entry.id)
                     local pts, why = S:Value(link)
                     if pts > 0 then
                         local cur = best[info.slot]
@@ -144,7 +144,7 @@ function UI:FillUpgrades()
                     cand.entry.from and (" from " .. cand.entry.from) or "")
                 r.icon:SetTexture(cand.info.icon)
                 setUsable(r, true)
-                local name = (cand.link and cand.link:match("%[(.-)%]")) or "|cff6a6258loading...|r"
+                local name = S:NameFor(cand.entry.id) or "|cff6a6258loading...|r"
                 r.left:SetText(("|cff8a8270%s|r %s"):format(S.SLOT_NAME[slot] or "?", name))
                 r.mid:SetText(cand.dungeon)
                 if have > 0 then
@@ -206,12 +206,11 @@ function UI:FillBrowse()
                     local info = S:Info(entry.id)
                     i = i + 1
                     local r = acquire(pane, i)
-                    r.itemID, r.link = entry.id, nil
-                    local _, link = pcall(select, 2, C_Item.GetItemInfo(entry.id))
-                    r.link = link
+                    r.itemID = entry.id
+                    r.link = S:LinkFor(entry.id)
                     r.note = nil
                     r.icon:SetTexture(info and info.icon or nil)
-                    local name = (link and link:match("%[(.-)%]")) or "|cff6a6258loading...|r"
+                    local name = S:NameFor(entry.id) or "|cff6a6258loading...|r"
                     local usable = (info and S:Usable(info)) and true or false
                     r.left:SetText(("   %s"):format(name))
                     r.mid:SetText(entry.from or (entry.how == "quest" and "quest reward" or ""))

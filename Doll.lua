@@ -136,8 +136,7 @@ function Doll:TryOn(itemID)
         ns.A:Print("your class cannot use that.")
         return false
     end
-    local _, link = pcall(select, 2, C_Item.GetItemInfo(itemID))
-    self.trying[info.slot] = { id = itemID, link = link, icon = info.icon }
+    self.trying[info.slot] = { id = itemID, link = S:LinkFor(itemID), icon = info.icon }
     ns.UI:Select("compare")
     if self:Ensure() then self:Refresh() end
     return true

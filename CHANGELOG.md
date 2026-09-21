@@ -1,5 +1,14 @@
 # Wick's Gear
 
+## 0.3.1
+
+- Names and stats no longer wait on the server at all. GetItemInfo
+  needs an item to have arrived and on this beta many never do, so
+  names come from GetItemNameByID and stats are read from an "item:id"
+  link built on the spot. Both are answered from the client's own
+  files. The real link is still preferred when it turns up, since it
+  carries enchants.
+
 ## 0.3.0
 
 - Items load properly now. Opening the window used to ask the server
