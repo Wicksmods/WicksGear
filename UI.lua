@@ -144,7 +144,7 @@ function UI:FillUpgrades()
                     cand.entry.from and (" from " .. cand.entry.from) or "")
                 r.icon:SetTexture(cand.info.icon)
                 setUsable(r, true)
-                local name = (cand.link and cand.link:match("%[(.-)%]")) or ("item " .. cand.entry.id)
+                local name = (cand.link and cand.link:match("%[(.-)%]")) or "|cff6a6258loading...|r"
                 r.left:SetText(("|cff8a8270%s|r %s"):format(S.SLOT_NAME[slot] or "?", name))
                 r.mid:SetText(cand.dungeon)
                 if have > 0 then
@@ -206,7 +206,7 @@ function UI:FillBrowse()
                     r.link = link
                     r.note = nil
                     r.icon:SetTexture(info and info.icon or nil)
-                    local name = (link and link:match("%[(.-)%]")) or ("item " .. entry.id)
+                    local name = (link and link:match("%[(.-)%]")) or "|cff6a6258loading...|r"
                     local usable = (info and S:Usable(info)) and true or false
                     r.left:SetText(("   %s"):format(name))
                     r.mid:SetText(entry.from or (entry.how == "quest" and "quest reward" or ""))
@@ -327,6 +327,24 @@ function UI:Refresh()
     if not self.panel or not self.panel:IsShown() then return end
     -- Item data has to be in memory before anything can be scored.
     ns.Score:Preload(ns.AllItemIDs(), function()
+        if UI.active == "browse" then UI:FillBrowse()
+        elseif UI.active == "compare" then
+            if ns.Doll:Ensure() then ns.Doll:Refresh() end
+        else UI:FillUpgrades() end
+    end)
+end
+
+-- The server sends item data back a few at a time, and whatever had not
+-- arrived when the list was drawn would otherwise sit there reading
+-- "item 9454" forever. Redraw when more turns up, coalesced so a
+-- hundred arrivals in one second are one redraw.
+function UI:ItemArrived()
+    if not (self.panel and self.panel:IsShown()) then return end
+    if self.redrawQueued then return end
+    self.redrawQueued = true
+    C_Timer.After(0.3, function()
+        UI.redrawQueued = nil
+        if not (UI.panel and UI.panel:IsShown()) then return end
         if UI.active == "browse" then UI:FillBrowse()
         elseif UI.active == "compare" then
             if ns.Doll:Ensure() then ns.Doll:Refresh() end

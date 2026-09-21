@@ -1,5 +1,13 @@
 # Wick's Gear
 
+## 0.2.2
+
+- Fixed: items still arriving from the server stayed as "item 9454"
+  with an empty tooltip. The list waited three seconds and drew
+  whatever had turned up; anything later was never drawn again. It now
+  redraws as data arrives, coalesced so a flood of them is one redraw,
+  and says "loading..." meanwhile instead of showing you an id.
+
 ## 0.2.1
 
 - Fixed: right-clicking a piece to try it on threw an error unless you

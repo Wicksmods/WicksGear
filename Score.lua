@@ -271,8 +271,16 @@ end
 -- ============================================================
 
 function S:Init()
+    -- Two events, because the two dialects announce this differently and
+    -- either may be the one this build sends.
+    ns.RegisterEvents({ "GET_ITEM_INFO_RECEIVED" })
     ns:On("ITEM_DATA_LOAD_RESULT", function(_, id, success)
         if success ~= false then S:OnItemLoaded(id) end
+        ns.UI:ItemArrived()
+    end)
+    ns:On("GET_ITEM_INFO_RECEIVED", function(_, id, success)
+        if success ~= false then S:OnItemLoaded(id) end
+        ns.UI:ItemArrived()
     end)
     -- Redraw the paperdoll when the character underneath it changes.
     ns.RegisterEvents({ "PLAYER_EQUIPMENT_CHANGED", "UNIT_STATS" })

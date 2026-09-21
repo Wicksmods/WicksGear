@@ -12,7 +12,7 @@
 local ADDON, ns = ...
 local Core = WickCore
 
-ns.version = "0.2.1"
+ns.version = "0.2.2"
 
 local PROFILE_DEFAULTS = {
     window   = {},
