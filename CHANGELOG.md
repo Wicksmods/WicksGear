@@ -1,5 +1,14 @@
 # Wick's Gear
 
+## 0.4.0
+
+- The data file now carries a name and a stat line for each item, used
+  only when the client has nothing of its own to say. On this beta it
+  often has nothing: of the thirteen things in Gnomeregan it could name
+  three. The client is still asked first and its answer always wins,
+  because it is the one this server is using.
+- Data.lua is 41KB, up from 25KB.
+
 ## 0.3.1
 
 - Names and stats no longer wait on the server at all. GetItemInfo

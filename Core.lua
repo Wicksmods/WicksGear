@@ -12,7 +12,7 @@
 local ADDON, ns = ...
 local Core = WickCore
 
-ns.version = "0.3.1"
+ns.version = "0.4.0"
 
 local PROFILE_DEFAULTS = {
     window   = {},
@@ -49,6 +49,13 @@ function ns.RegisterEvents(list)
 end
 
 function ns.db() return A.db and A.db.profile or {} end
+
+-- id -> the entry that carries its fallback name and stats, so anything
+-- can reach them without walking every dungeon again.
+ns.ENTRY = {}
+for _, d in pairs(ns.DUNGEONS) do
+    for _, it in ipairs(d.items) do ns.ENTRY[it.id] = it end
+end
 
 -- Every id in the data, once, for preloading.
 function ns.AllItemIDs()

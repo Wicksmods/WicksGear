@@ -194,7 +194,23 @@ function S:NameFor(id)
     end
     local ok, name = pcall(C_Item.GetItemInfo, id)
     if ok and type(name) == "string" and name ~= "" then return name end
-    return nil
+    -- The client has never met this item. Fall back to what shipped.
+    local entry = ns.ENTRY and ns.ENTRY[id]
+    return entry and entry.name ~= "" and entry.name or nil
+end
+
+-- Stats for an id, the client's answer preferred over the shipped one
+-- because the client is the one this server is actually using.
+function S:StatsOf(id)
+    local live = self:NormalStats(self:LinkFor(id))
+    if next(live) ~= nil then return live, true end
+    local entry = ns.ENTRY and ns.ENTRY[id]
+    if entry and entry.stats then
+        local copy = {}
+        for k, v in pairs(entry.stats) do copy[k] = v end
+        return copy, false
+    end
+    return {}, false
 end
 
 function S:Info(id)
@@ -232,46 +248,45 @@ function S:Usable(info)
 end
 
 -- Points, in units of the class's primary stat.
-function S:Value(link)
-    if not link then return 0, nil end
-    local stats = C_Item.GetItemStats(link)
-    if not stats then return 0, nil end
-    local w = self:Weights()
-    if not w then return 0, nil end
+--
+-- Everything arrives here in our own short stat names, whether it came
+-- from the client or from the shipped fallback, so there is one place
+-- that knows what a stat is worth.
+local WEIGHT_OF = { str = "strength", agi = "agility", sta = "stamina",
+                    int = "intellect", spi = "spirit", armor = "armor" }
 
-    -- The keys GetItemStats hands back, mapped to what we weight them by
-    -- and what to call them on screen.
-    local MAP = {
-        ITEM_MOD_STRENGTH_SHORT  = { "strength",  "str" },
-        ITEM_MOD_AGILITY_SHORT   = { "agility",   "agi" },
-        ITEM_MOD_STAMINA_SHORT   = { "stamina",   "sta" },
-        ITEM_MOD_INTELLECT_SHORT = { "intellect", "int" },
-        ITEM_MOD_SPIRIT_SHORT    = { "spirit",    "spi" },
-        RESISTANCE0_NAME         = { "armor",     "armor" },
-    }
+function S:Weigh(short, link, w)
     local total, parts = 0, {}
-    for key, value in pairs(stats) do
-        local m = MAP[key]
-        if m and type(value) == "number" then
-            local weight = w[m[1]]
-            if weight and weight ~= 0 then
-                total = total + value * weight
-                parts[#parts + 1] = ("%s %d"):format(m[2], value)
-            end
+    for _, key in ipairs(self.STAT_ORDER) do
+        local value = short[key]
+        local weight = value and w[WEIGHT_OF[key]]
+        if weight and weight ~= 0 then
+            total = total + value * weight
+            parts[#parts + 1] = ("%s %d"):format(key, value)
         end
     end
 
     -- A weapon's damage swamps its stat line, so it is converted rather
-    -- than left out. For a caster the weapon is a stat stick and the rate
-    -- is set low to say so.
-    local speed, lo, hi = self:WeaponDamage(link)
-    if speed and speed > 0 then
-        local dps = ((lo + hi) / 2) / speed
-        total = total + dps * self:DpsRate()
-        table.insert(parts, 1, ("%.1f dps"):format(dps))
+    -- than left out. For a caster the weapon is a stat stick and the
+    -- rate is set low to say so.
+    if link then
+        local speed, lo, hi = self:WeaponDamage(link)
+        if speed and speed > 0 then
+            local dps = ((lo + hi) / 2) / speed
+            total = total + dps * self:DpsRate()
+            table.insert(parts, 1, ("%.1f dps"):format(dps))
+        end
     end
 
     return total, table.concat(parts, ", ")
+end
+
+function S:Value(link, id)
+    local w = self:Weights()
+    if not w then return 0, nil end
+    if id then return self:Weigh((self:StatsOf(id)), link, w) end
+    if not link then return 0, nil end
+    return self:Weigh(self:NormalStats(link), link, w)
 end
 
 function S:WeaponDamage(link)

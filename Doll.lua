@@ -175,7 +175,7 @@ function Doll:Deltas()
     local S = ns.Score
     local out = {}
     for slotId, trying in pairs(self.trying) do
-        local new = S:NormalStats(trying.link)
+        local new = S:StatsOf(trying.id)
         local old = S:EquippedStats(slotId)
         for _, key in ipairs(S.STAT_ORDER) do
             local d = (new[key] or 0) - (old[key] or 0)
@@ -189,7 +189,7 @@ function Doll:ScoreDelta()
     local S = ns.Score
     local total = 0
     for slotId, trying in pairs(self.trying) do
-        total = total + (S:Value(trying.link)) - (S:EquippedValue(slotId))
+        total = total + (S:Value(trying.link, trying.id)) - (S:EquippedValue(slotId))
     end
     return total
 end

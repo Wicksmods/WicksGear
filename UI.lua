@@ -116,7 +116,7 @@ function UI:FillUpgrades()
                 local info = S:Info(entry.id)
                 if info and info.slot and S:Usable(info) then
                     local link = S:LinkFor(entry.id)
-                    local pts, why = S:Value(link)
+                    local pts, why = S:Value(link, entry.id)
                     if pts > 0 then
                         local cur = best[info.slot]
                         if not cur or pts > cur.pts then
