@@ -191,7 +191,9 @@ function UI:FillBrowse()
             head.icon:SetDesaturated(false)
             head.icon:SetAlpha(1)
             head.left:SetText(("|cff4FC778%s|r"):format(dungeon))
-            head.mid:SetText(d.levels)
+            -- A range worked out from the loot is not the dungeon's
+            -- own bracket, so it does not get to look like one.
+            head.mid:SetText(d.levelsDerived and (d.levels .. "?") or d.levels)
             head.right:SetText(("%d"):format(#d.items))
             tint(head.right, C.muted)
             head:Show()
