@@ -15,6 +15,21 @@ local WIDTH, HEIGHT = 430, 400
 
 local function tint(fs, c) fs:SetTextColor(c[1], c[2], c[3], c[4] or 1) end
 
+-- Muted is the colour of a secondary label, not of something unavailable,
+-- and at this size the two read the same. Gear the class cannot use needs
+-- to be obvious at a glance, so it goes darker than any label and loses
+-- the colour in its icon as well.
+local UNUSABLE = { 0.34, 0.31, 0.28, 1 }
+
+local function setUsable(row, usable)
+    row.dimmed = not usable
+    row.icon:SetDesaturated(not usable)
+    row.icon:SetAlpha(usable and 1 or 0.3)
+    tint(row.left, usable and C.text or UNUSABLE)
+    tint(row.mid, usable and C.muted or UNUSABLE)
+    tint(row.right, usable and C.muted or UNUSABLE)
+end
+
 -- ============================================================
 -- Rows
 -- ============================================================
@@ -118,6 +133,7 @@ function UI:FillUpgrades()
                 r.note = ("%s, %s%s"):format(cand.dungeon, cand.entry.how,
                     cand.entry.from and (" from " .. cand.entry.from) or "")
                 r.icon:SetTexture(cand.info.icon)
+                setUsable(r, true)
                 local name = (cand.link and cand.link:match("%[(.-)%]")) or ("item " .. cand.entry.id)
                 r.left:SetText(("|cff8a8270%s|r %s"):format(S.SLOT_NAME[slot] or "?", name))
                 r.mid:SetText(cand.dungeon)
@@ -161,6 +177,9 @@ function UI:FillBrowse()
             local head = acquire(pane, i)
             head.itemID, head.link, head.note = nil, nil, nil
             head.icon:SetTexture(nil)
+            head.dimmed = nil
+            head.icon:SetDesaturated(false)
+            head.icon:SetAlpha(1)
             head.left:SetText(("|cff4FC778%s|r"):format(dungeon))
             head.mid:SetText(d.levels)
             head.right:SetText(("%d"):format(#d.items))
@@ -178,12 +197,11 @@ function UI:FillBrowse()
                     r.note = nil
                     r.icon:SetTexture(info and info.icon or nil)
                     local name = (link and link:match("%[(.-)%]")) or ("item " .. entry.id)
-                    local usable = info and S:Usable(info)
+                    local usable = (info and S:Usable(info)) and true or false
                     r.left:SetText(("   %s"):format(name))
-                    tint(r.left, usable and C.text or C.muted)
                     r.mid:SetText(entry.from or (entry.how == "quest" and "quest reward" or ""))
                     r.right:SetText(entry.req > 0 and ("req %d"):format(entry.req) or "")
-                    tint(r.right, C.muted)
+                    setUsable(r, usable)
                     r:Show()
                 end
             end
@@ -197,7 +215,7 @@ function UI:FillBrowse()
 
     pane.list:SetHeight(math.max(1, i * ROW_H))
     pane.empty:Hide()
-    pane.head:SetText("|cff8a8270Click a dungeon to open it. Greyed items your class cannot use.|r")
+    pane.head:SetText("|cff8a8270Click a dungeon to open it. Darkened items your class cannot use.|r")
 end
 
 -- ============================================================
