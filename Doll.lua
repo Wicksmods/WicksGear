@@ -16,6 +16,7 @@
 -- something, and correct for this class at this level by construction.
 
 local ADDON, ns = ...
+if not WickCore then return end   -- said once in Core.lua
 local Core = WickCore
 local Chrome = Core.Chrome
 local C = Chrome.Colors

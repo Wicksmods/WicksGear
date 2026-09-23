@@ -3,7 +3,7 @@
 ## Notes: What to chase while levelling, scored against what you are wearing, and a browser for what drops where. Item names and stats come from the client, so nothing goes stale.
 ## Author: Wick
 ## Version: 0.4.0
-## Dependencies: WickCore
+## OptionalDeps: WickCore
 ## SavedVariables: WicksGearSaved
 ## X-Website: https://wicksmods.com
 ## X-WickCore: WickCore-1.0

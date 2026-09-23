@@ -12,6 +12,7 @@
 
 local ADDON, ns = ...
 
+if not WickCore then return end   -- said once in Core.lua
 ns.SOURCE = "wowhead.com/forever, zone drop listviews"
 ns.COLLECTED = "2026-09-21"
 

@@ -12,6 +12,7 @@
 -- stats has to request a load and wait.
 
 local ADDON, ns = ...
+if not WickCore then return end   -- said once in Core.lua
 local Core = WickCore
 
 local S = {}
