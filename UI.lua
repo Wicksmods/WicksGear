@@ -199,11 +199,77 @@ local function matches(entry, dungeon, needle)
     return false
 end
 
+-- The four ways into the same pile of gear. Each returns an ordered list
+-- of group names and a lookup from group to its rows, so the fill code
+-- below does not care which source it is drawing.
+UI.SOURCES = { "dungeons", "crafted", "quests", "sets" }
+UI.SOURCE_LABEL = { dungeons = "Dungeons", crafted = "Crafted",
+                    quests = "Quests", sets = "Sets" }
+
+-- Built once and kept, because walking every table to find set members
+-- on each keystroke would be work for nothing: the tables never change
+-- after load.
+local setsCache
+local function bySet()
+    if setsCache then return setsCache end
+    local groups = {}
+    local function sweep(tbl)
+        for _, rows in pairs(tbl or {}) do
+            for _, e in ipairs(rows) do
+                if e.set then
+                    groups[e.set] = groups[e.set] or {}
+                    table.insert(groups[e.set], e)
+                end
+            end
+        end
+    end
+    -- The dungeon table nests its rows one level deeper than the others.
+    local flat = {}
+    for name, d in pairs(ns.DUNGEONS or {}) do flat[name] = d.items end
+    sweep(flat)
+    sweep(ns.CRAFTED)
+    sweep(ns.QUESTS)
+    setsCache = groups
+    return groups
+end
+
+function UI:Groups(source)
+    if source == "crafted" then
+        return ns.CRAFTED_ORDER or {}, ns.CRAFTED or {}
+    elseif source == "quests" then
+        return ns.QUESTS_ORDER or {}, ns.QUESTS or {}
+    elseif source == "sets" then
+        local groups = bySet()
+        local order = {}
+        for name in pairs(groups) do order[#order + 1] = name end
+        table.sort(order)
+        return order, groups
+    end
+    local order, groups = {}, {}
+    for _, name in ipairs(ns.DUNGEON_ORDER or {}) do
+        local d = ns.DUNGEONS[name]
+        if d then order[#order + 1] = name; groups[name] = d.items end
+    end
+    return order, groups
+end
+
+function UI:SetSource(source)
+    self.source = source
+    self.search = nil
+    local pane = self.panes and self.panes.browse
+    if pane and pane.search then pane.search:SetText("") end
+    if pane then pane.open = {} end
+    self:Refresh()
+end
+
 function UI:FillBrowse()
     local pane = self.panes.browse
     clear(pane)
     local S = ns.Score
     local i = 0
+    local source = self.source or "dungeons"
+    local order, groups = self:Groups(source)
+
     local needle = (self.search or ""):lower()
     if needle == "" then needle = nil end
 
@@ -211,45 +277,64 @@ function UI:FillBrowse()
         pane.search:Show()
         pane.searchHint:SetShown((pane.search:GetText() or "") == "")
     end
+    for key, b in pairs(pane.sourceBtns or {}) do
+        b:Show()
+        b:SetAlpha(key == source and 1 or 0.55)
+    end
 
-    -- Searching flattens the list. Collapsed dungeons would otherwise hide
-    -- the thing being looked for, which is the opposite of searching.
+    -- One row for an item, wherever it came from. The middle column says
+    -- the thing that is worth knowing about it in this source: the boss
+    -- for a drop, the skill for a recipe, the group for a set.
+    local function itemRow(entry, group, indent)
+        local info = S:Info(entry.id)
+        i = i + 1
+        local r = acquire(pane, i)
+        r.itemID = entry.id
+        r.link = S:LinkFor(entry.id)
+        r.note = nil
+        r.icon:SetTexture(info and info.icon or nil)
+        r.left:SetText(("%s%s"):format(indent and "   " or "",
+            S:NameFor(entry.id) or entry.name or "|cff6a6258loading...|r"))
+        if entry.skill then
+            r.mid:SetText(("skill %d"):format(entry.skill))
+        elseif entry.from then
+            r.mid:SetText(entry.from)
+        elseif entry.how == "quest" then
+            r.mid:SetText("quest reward")
+        else
+            r.mid:SetText(group or "")
+        end
+        local req = entry.req or 0
+        r.right:SetText(req > 0 and ("req %d"):format(req) or "")
+        setUsable(r, (info and S:Usable(info)) and true or false)
+        r:Show()
+    end
+
+    -- Searching flattens the list. A collapsed group hiding the match is
+    -- the opposite of searching.
     if needle then
         local found = 0
-        for _, dungeon in ipairs(ns.DUNGEON_ORDER) do
-            local d = ns.DUNGEONS[dungeon]
-            for _, entry in ipairs(d and d.items or {}) do
-                if matches(entry, dungeon, needle) then
+        for _, group in ipairs(order) do
+            for _, entry in ipairs(groups[group] or {}) do
+                if matches(entry, group, needle) then
                     found = found + 1
-                    i = i + 1
-                    local r = acquire(pane, i)
-                    local info = S:Info(entry.id)
-                    r.itemID, r.link, r.note = entry.id, S:LinkFor(entry.id), nil
-                    r.icon:SetTexture(info and info.icon or nil)
-                    r.left:SetText(S:NameFor(entry.id) or entry.name or "|cff6a6258loading...|r")
-                    -- Where it is from matters more than the boss when the
-                    -- dungeons are not grouping the list any more.
-                    r.mid:SetText(dungeon)
-                    r.right:SetText(entry.from or (entry.how == "quest" and "quest" or ""))
-                    tint(r.right, C.muted)
-                    setUsable(r, (info and S:Usable(info)) and true or false)
-                    r:Show()
+                    itemRow(entry, group, false)
                 end
             end
         end
         pane.list:SetHeight(math.max(1, i * ROW_H))
         pane.empty:SetShown(found == 0)
         if found == 0 then
-            pane.empty:SetText("Nothing matches. Try a slot, a boss, or part of an item name.")
+            pane.empty:SetText("Nothing matches. Try a slot, a name, or where it comes from.")
         end
-        pane.head:SetText(("|cff8a8270%d match%s across every dungeon. Clear the box to go back to the list.|r")
-            :format(found, found == 1 and "" or "es"))
+        pane.head:SetText(("|cff8a8270%d match%s in %s. Clear the box to go back to the list.|r")
+            :format(found, found == 1 and "" or "es", UI.SOURCE_LABEL[source]:lower()))
         return
     end
 
-    for _, dungeon in ipairs(ns.DUNGEON_ORDER) do
-        local d = ns.DUNGEONS[dungeon]
-        if d then
+    for _, group in ipairs(order) do
+        local rows = groups[group]
+        if rows and #rows > 0 then
             i = i + 1
             local head = acquire(pane, i)
             head.itemID, head.link, head.note = nil, nil, nil
@@ -257,40 +342,30 @@ function UI:FillBrowse()
             head.dimmed = nil
             head.icon:SetDesaturated(false)
             head.icon:SetAlpha(1)
-            head.left:SetText(("|cff4FC778%s|r"):format(dungeon))
-            -- A range worked out from the loot is not the dungeon's
-            -- own bracket, so it does not get to look like one.
-            head.mid:SetText(d.levelsDerived and (d.levels .. "?") or d.levels)
-            head.right:SetText(("%d"):format(#d.items))
+            head.left:SetText(("|cff4FC778%s|r"):format(group))
+
+            -- Only a dungeon has a level bracket. A range worked out from
+            -- the loot is not the dungeon's own, so it does not get to
+            -- look like one.
+            local d = source == "dungeons" and ns.DUNGEONS[group]
+            if d then
+                head.mid:SetText(d.levelsDerived and (d.levels .. "?") or d.levels)
+            else
+                head.mid:SetText("")
+            end
+            head.right:SetText(("%d"):format(#rows))
             tint(head.right, C.muted)
             head:Show()
 
-            if pane.open[dungeon] then
-                -- Looking at a dungeon puts its loot at the front of the
-                -- queue, ahead of the thirteen you are not looking at.
+            if pane.open[group] then
                 local want = {}
-                for _, entry in ipairs(d.items) do want[#want + 1] = entry.id end
+                for _, entry in ipairs(rows) do want[#want + 1] = entry.id end
                 ns.Score:WantFirst(want)
-                for _, entry in ipairs(d.items) do
-                    local info = S:Info(entry.id)
-                    i = i + 1
-                    local r = acquire(pane, i)
-                    r.itemID = entry.id
-                    r.link = S:LinkFor(entry.id)
-                    r.note = nil
-                    r.icon:SetTexture(info and info.icon or nil)
-                    local name = S:NameFor(entry.id) or "|cff6a6258loading...|r"
-                    local usable = (info and S:Usable(info)) and true or false
-                    r.left:SetText(("   %s"):format(name))
-                    r.mid:SetText(entry.from or (entry.how == "quest" and "quest reward" or ""))
-                    r.right:SetText(entry.req > 0 and ("req %d"):format(entry.req) or "")
-                    setUsable(r, usable)
-                    r:Show()
-                end
+                for _, entry in ipairs(rows) do itemRow(entry, group, true) end
             end
 
             head:SetScript("OnClick", function()
-                pane.open[dungeon] = not pane.open[dungeon]
+                pane.open[group] = not pane.open[group]
                 UI:FillBrowse()
             end)
         end
@@ -298,8 +373,14 @@ function UI:FillBrowse()
 
     pane.list:SetHeight(math.max(1, i * ROW_H))
     pane.empty:Hide()
-    pane.head:SetText("|cff8a8270Click a dungeon to open it. Darkened items your class cannot use.|r")
+    local what = source == "dungeons" and "a dungeon"
+        or source == "crafted" and "a profession"
+        or source == "quests" and "a zone"
+        or "a set"
+    pane.head:SetText(("|cff8a8270Click %s to open it. Darkened items your class cannot use.|r")
+        :format(what))
 end
+
 
 -- ============================================================
 -- Frame
@@ -358,6 +439,18 @@ local function makePane(parent, plain)
     pane.searchHint = Chrome:Text(search, 10, C.muted)
     pane.searchHint:SetPoint("LEFT", 5, 0)
     pane.searchHint:SetText("search")
+
+    -- A button per source, left of the search box.
+    pane.sourceBtns = {}
+    local sx = 0
+    for _, key in ipairs(UI.SOURCES) do
+        local b = Chrome:Button(parent, UI.SOURCE_LABEL[key], 60, 16)
+        b:SetPoint("TOPLEFT", 12 + sx, -Chrome.HEADER_H - TAB_H - 8)
+        sx = sx + 63
+        b:SetScript("OnClick", function() UI:SetSource(key) end)
+        pane.sourceBtns[key] = b
+        b:Hide()
+    end
     pane.empty = Chrome:Text(pane, 11, C.muted)
     pane.empty:SetPoint("TOPLEFT", 2, -4)
     pane.empty:SetWidth(WIDTH - 40)

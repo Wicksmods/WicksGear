@@ -78,26 +78,30 @@ function ns.db() return A.db and A.db.profile or {} end
 -- id -> the entry that carries its fallback name and stats, so anything
 -- can reach them without walking every dungeon again.
 ns.ENTRY = {}
-for name, d in pairs(ns.DUNGEONS) do
-    for _, it in ipairs(d.items) do
-        -- Where it came from is part of describing it, and the data file
-        -- is keyed the other way round.
-        it.dungeon = name
-        ns.ENTRY[it.id] = it
+
+-- Every source, not only the dungeons. The fallback exists for items the
+-- client has never met, and a crafted piece or a quest reward from a zone
+-- the character has not been to is exactly that: leaving them out meant
+-- the two newest sources had no names, no tooltips and no chat links.
+local function index(tbl, key, nested)
+    for group, rows in pairs(tbl or {}) do
+        for _, it in ipairs(nested and rows.items or rows) do
+            -- Where it came from is part of describing it, and the data
+            -- files are keyed the other way round.
+            it[key] = group
+            ns.ENTRY[it.id] = it
+        end
     end
 end
+index(ns.DUNGEONS, "dungeon", true)
+index(ns.CRAFTED, "profession", false)
+index(ns.QUESTS, "zone", false)
 
 -- Every id in the data, once, for preloading.
 function ns.AllItemIDs()
-    local seen, ids = {}, {}
-    for _, d in pairs(ns.DUNGEONS) do
-        for _, it in ipairs(d.items) do
-            if not seen[it.id] then
-                seen[it.id] = true
-                ids[#ids + 1] = it.id
-            end
-        end
-    end
+    local ids = {}
+    -- ENTRY is already every item from every source, keyed once.
+    for id in pairs(ns.ENTRY) do ids[#ids + 1] = id end
     return ids
 end
 
@@ -151,6 +155,9 @@ SlashCmdList.WICKSGEAR = function(input)
     local cmd = tostring(input or ""):lower():gsub("^%s+", ""):gsub("%s+$", "")
     if cmd == "" or cmd == "toggle" then ns.UI:Toggle()
     elseif cmd == "browse" then ns.UI:Toggle("browse")
+    elseif cmd == "crafted" then ns.UI:Toggle("browse"); ns.UI:SetSource("crafted")
+    elseif cmd == "quests" then ns.UI:Toggle("browse"); ns.UI:SetSource("quests")
+    elseif cmd == "sets" then ns.UI:Toggle("browse"); ns.UI:SetSource("sets")
     elseif cmd == "upgrades" or cmd == "bis" then ns.UI:Toggle("upgrades")
     elseif cmd == "options" or cmd == "config" then A:OpenOptions()
     elseif cmd:match("^link") then
@@ -174,6 +181,9 @@ SlashCmdList.WICKSGEAR = function(input)
         A:Print("commands:")
         A:Print("  /wgear            what to chase, scored against what you wear")
         A:Print("  /wgear browse     what drops where, dungeon by dungeon")
+        A:Print("  /wgear crafted    what the professions make")
+        A:Print("  /wgear quests     quest rewards worth the trip")
+        A:Print("  /wgear sets       gear grouped by the set it belongs to")
         A:Print("  /wgear options    weights and what counts as your role")
         A:Print("  /wgear link <id>  what an item link looks like here, ours beside the client's")
     end

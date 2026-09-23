@@ -9,6 +9,8 @@
 ## X-WickCore: WickCore-1.0
 
 Data.lua
+DataCrafted.lua
+DataQuests.lua
 Score.lua
 Core.lua
 Doll.lua
