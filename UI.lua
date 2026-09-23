@@ -187,11 +187,65 @@ end
 -- Browse
 -- ============================================================
 
+-- Item, boss or quest, slot, and the dungeon it is in. All four, because
+-- "boots", "Taragaman" and "Ragefire" are all things someone types into a
+-- box that sits above a list of loot.
+local function matches(entry, dungeon, needle)
+    if not needle or needle == "" then return true end
+    local name = ns.Score:NameFor(entry.id) or entry.name or ""
+    for _, field in ipairs({ name, entry.from or "", entry.slot or "", dungeon }) do
+        if field:lower():find(needle, 1, true) then return true end
+    end
+    return false
+end
+
 function UI:FillBrowse()
     local pane = self.panes.browse
     clear(pane)
     local S = ns.Score
     local i = 0
+    local needle = (self.search or ""):lower()
+    if needle == "" then needle = nil end
+
+    if pane.search then
+        pane.search:Show()
+        pane.searchHint:SetShown((pane.search:GetText() or "") == "")
+    end
+
+    -- Searching flattens the list. Collapsed dungeons would otherwise hide
+    -- the thing being looked for, which is the opposite of searching.
+    if needle then
+        local found = 0
+        for _, dungeon in ipairs(ns.DUNGEON_ORDER) do
+            local d = ns.DUNGEONS[dungeon]
+            for _, entry in ipairs(d and d.items or {}) do
+                if matches(entry, dungeon, needle) then
+                    found = found + 1
+                    i = i + 1
+                    local r = acquire(pane, i)
+                    local info = S:Info(entry.id)
+                    r.itemID, r.link, r.note = entry.id, S:LinkFor(entry.id), nil
+                    r.icon:SetTexture(info and info.icon or nil)
+                    r.left:SetText(S:NameFor(entry.id) or entry.name or "|cff6a6258loading...|r")
+                    -- Where it is from matters more than the boss when the
+                    -- dungeons are not grouping the list any more.
+                    r.mid:SetText(dungeon)
+                    r.right:SetText(entry.from or (entry.how == "quest" and "quest" or ""))
+                    tint(r.right, C.muted)
+                    setUsable(r, (info and S:Usable(info)) and true or false)
+                    r:Show()
+                end
+            end
+        end
+        pane.list:SetHeight(math.max(1, i * ROW_H))
+        pane.empty:SetShown(found == 0)
+        if found == 0 then
+            pane.empty:SetText("Nothing matches. Try a slot, a boss, or part of an item name.")
+        end
+        pane.head:SetText(("|cff8a8270%d match%s across every dungeon. Clear the box to go back to the list.|r")
+            :format(found, found == 1 and "" or "es"))
+        return
+    end
 
     for _, dungeon in ipairs(ns.DUNGEON_ORDER) do
         local d = ns.DUNGEONS[dungeon]
@@ -282,6 +336,28 @@ local function makePane(parent, plain)
     clip:SetScript("OnSizeChanged", function(f) list:SetWidth(f:GetWidth() or 1) end)
 
     pane.clip, pane.list, pane.open = clip, list, {}
+
+    -- The search box sits in the header strip rather than the scrolling
+    -- area, so it stays put while the list moves under it.
+    local search = CreateFrame("EditBox", nil, parent)
+    search:SetSize(150, 16)
+    search:SetPoint("TOPRIGHT", -12, -Chrome.HEADER_H - TAB_H - 8)
+    search:SetAutoFocus(false)
+    search:SetFontObject("GameFontHighlightSmall")
+    search:SetTextInsets(4, 4, 0, 0)
+    Chrome:Texture(search, "BACKGROUND", C.shadow):SetAllPoints()
+    Chrome:AddBorder(search)
+    search:SetScript("OnTextChanged", function(e)
+        UI.search = e:GetText()
+        if UI.Refresh then UI:Refresh() end
+    end)
+    search:SetScript("OnEscapePressed", function(e) e:SetText(""); e:ClearFocus() end)
+    search:SetScript("OnEnterPressed", function(e) e:ClearFocus() end)
+    search:Hide()
+    pane.search = search
+    pane.searchHint = Chrome:Text(search, 10, C.muted)
+    pane.searchHint:SetPoint("LEFT", 5, 0)
+    pane.searchHint:SetText("search")
     pane.empty = Chrome:Text(pane, 11, C.muted)
     pane.empty:SetPoint("TOPLEFT", 2, -4)
     pane.empty:SetWidth(WIDTH - 40)
