@@ -1,5 +1,21 @@
 # Wick's Gear
 
+## 0.9.2
+
+### Fixed
+
+- Comparing a two-hander left your off hand on. The compare was adding
+  a two-hander and a shield together, which is not something you can
+  wear, so every number it gave was too high. It comes off now, and the
+  other way round too: an off hand takes a two-hander off.
+- A dungeon in the browse list could look disabled. Rows are reused, and
+  a group header was not undoing all of the dimming left by an unusable
+  item.
+- Upgrades printed "-0" for a slot barely worse off, which reads as a
+  downgrade that is not one. An empty slot printed its score without a
+  sign while every other row had one; going from nothing to something is
+  a gain like any other.
+
 ## 0.9.1
 
 ### Browse four sources, not one

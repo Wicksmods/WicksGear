@@ -1,3 +1,4 @@
+<p align="center"><img src="images/wick-thumb-gear.png" alt="Wick's Gear"></p>
 # Wick's Gear
 
 What to chase while levelling, and a quick way to look up what drops where.
