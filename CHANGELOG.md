@@ -1,5 +1,11 @@
 # Wick's Gear
 
+## 0.9.0
+
+One version across the suite for the Forever beta. Every addon carried a
+number of its own that said nothing about how finished it was, so they are
+aligned here and the suite goes to 1.0.0 together at launch.
+
 ## 0.4.0
 
 - The data file now carries a name and a stat line for each item, used

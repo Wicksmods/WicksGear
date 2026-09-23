@@ -37,7 +37,7 @@ if not Core then
     need[#need + 1] = "Wick's Gear"
     return
 end
-ns.version = "0.4.0"
+ns.version = "0.9.0"
 
 local PROFILE_DEFAULTS = {
     window   = {},
