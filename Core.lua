@@ -160,6 +160,28 @@ SlashCmdList.WICKSGEAR = function(input)
     elseif cmd == "quests" then ns.UI:Toggle("browse"); ns.UI:SetSource("quests")
     elseif cmd == "sets" then ns.UI:Toggle("browse"); ns.UI:SetSource("sets")
     elseif cmd == "upgrades" or cmd == "bis" then ns.UI:Toggle("upgrades")
+    elseif cmd == "data" then
+        -- What actually loaded. A view that comes up empty looks the same
+        -- whether the table is missing, the order list is missing, or the
+        -- file never loaded at all, and those want different fixes.
+        local function count(t)
+            if type(t) ~= "table" then return -1 end
+            local n = 0
+            for _ in pairs(t) do n = n + 1 end
+            return n
+        end
+        A:Print(("dungeons: %d groups, order %d"):format(
+            count(ns.DUNGEONS), count(ns.DUNGEON_ORDER)))
+        A:Print(("crafted:  %d groups, order %d"):format(
+            count(ns.CRAFTED), count(ns.CRAFTED_ORDER)))
+        A:Print(("quests:   %d groups, order %d"):format(
+            count(ns.QUESTS), count(ns.QUESTS_ORDER)))
+        A:Print(("entries indexed: %d"):format(count(ns.ENTRY)))
+        if type(ns.CRAFTED) == "table" then
+            for k, v in pairs(ns.CRAFTED) do
+                A:Print(("   %s: %d"):format(tostring(k), count(v)))
+            end
+        end
     elseif cmd == "options" or cmd == "config" then A:OpenOptions()
     elseif cmd:match("^link") then
         -- What a link looks like on this build, ours beside the client's.
@@ -185,6 +207,7 @@ SlashCmdList.WICKSGEAR = function(input)
         A:Print("  /wgear crafted    what the professions make")
         A:Print("  /wgear quests     quest rewards worth the trip")
         A:Print("  /wgear sets       gear grouped by the set it belongs to")
+        A:Print("  /wgear data       what data actually loaded")
         A:Print("  /wgear options    weights and what counts as your role")
         A:Print("  /wgear link <id>  what an item link looks like here, ours beside the client's")
     end
