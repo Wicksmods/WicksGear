@@ -396,7 +396,7 @@ function UI:FillBrowse()
         or source == "crafted" and "a profession"
         or source == "quests" and "a zone"
         or "a set"
-    pane.head:SetText(("|cff8a8270Click %s to open it. Darkened items your class cannot use.|r")
+    pane.head:SetText(("|cff8a8270Click %s to open it. Darkened items you cannot use.|r")
         :format(what))
 end
 
@@ -420,7 +420,9 @@ local function makePane(parent, plain, withStrip)
     pane.head = Chrome:Text(parent, 10, C.muted)
     pane.head:SetPoint("TOPLEFT", 12, -Chrome.HEADER_H - TAB_H - 10
         - (withStrip and STRIP_H or 0))
-    pane.head:SetWidth(WIDTH - 24)
+    -- Browse keeps the Equippable toggle on this line, so the text has
+    -- to stop before it rather than run underneath.
+    pane.head:SetWidth(WIDTH - 24 - (withStrip and 106 or 0))
     pane.head:SetJustifyH("LEFT")
 
     if plain then
@@ -488,6 +490,10 @@ local function makePane(parent, plain, withStrip)
     pane.equippable = Chrome:Check(parent, "Equippable",
         function() return ns.db().onlyEquippable == true end,
         function(v) ns.db().onlyEquippable = v; UI:Refresh() end)
+    -- Chrome:Check is 220 wide by default with the box at its left edge,
+    -- so anchored right the box lands in the middle of the panel and the
+    -- help text runs into it. Sized to what it actually draws.
+    pane.equippable:SetWidth(100)
     pane.equippable:SetPoint("TOPRIGHT", -12, -Chrome.HEADER_H - TAB_H - 26)
     pane.equippable:Hide()
     end
