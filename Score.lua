@@ -585,6 +585,16 @@ function S:IsEquipped(id)
     return false
 end
 
+-- Whether the weapon actually on the character is a two-hander, which
+-- decides whether putting something in the off hand takes it off.
+function S:EquippedIsTwoHand()
+    if not GetInventoryItemID then return false end
+    local ok, id = pcall(GetInventoryItemID, "player", 16)
+    if not ok or not id then return false end
+    local info = self:Info(id)
+    return info ~= nil and info.equipLoc == "INVTYPE_2HWEAPON"
+end
+
 function S:NormalStats(link)
     local out = {}
     if not link then return out end

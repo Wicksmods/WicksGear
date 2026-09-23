@@ -34,7 +34,11 @@ local LEFT  = { 1, 2, 3, 15, 5, 9 }        -- head, neck, shoulder, back, chest,
 local RIGHT = { 10, 6, 7, 8, 11, 13 }      -- hands, waist, legs, feet, finger, trinket
 local UNDER = { 16, 17, 18 }               -- weapon, off hand, ranged
 
-Doll.trying = {}   -- slot -> { id, link }
+Doll.trying = {}   -- slot -> { id, link } or { empty = true }
+
+-- An entry of { empty = true } means this slot is deliberately bare in
+-- the comparison, which is different from not trying anything in it.
+local MAIN_HAND, OFF_HAND = 16, 17
 
 local function tint(fs, c) fs:SetTextColor(c[1], c[2], c[3], c[4] or 1) end
 
@@ -146,6 +150,24 @@ function Doll:TryOn(itemID)
         return false
     end
     self.trying[info.slot] = { id = itemID, link = S:LinkFor(itemID), icon = info.icon }
+
+    -- A two-hander takes the off hand with it. Without this the compare
+    -- counted a two-hander and a shield at once, which is not something
+    -- you can wear, and every number came out too high.
+    if info.equipLoc == "INVTYPE_2HWEAPON" then
+        self.trying[OFF_HAND] = { empty = true }
+    elseif info.slot == OFF_HAND then
+        -- And the other way: putting something in the off hand while a
+        -- two-hander is in the weapon slot takes the two-hander off.
+        local main = self.trying[MAIN_HAND]
+        local mainLoc = main and main.id and S:Info(main.id) and S:Info(main.id).equipLoc
+        if mainLoc == "INVTYPE_2HWEAPON" then
+            self.trying[MAIN_HAND] = { empty = true }
+        elseif not main and S:EquippedIsTwoHand() then
+            self.trying[MAIN_HAND] = { empty = true }
+        end
+    end
+
     ns.UI:Select("compare")
     if self:Ensure() then self:Refresh() end
     return true
@@ -184,7 +206,7 @@ function Doll:Deltas()
     local S = ns.Score
     local out = {}
     for slotId, trying in pairs(self.trying) do
-        local new = S:StatsOf(trying.id)
+        local new = trying.empty and {} or S:StatsOf(trying.id)
         local old = S:EquippedStats(slotId)
         for _, key in ipairs(S.STAT_ORDER) do
             local d = (new[key] or 0) - (old[key] or 0)
@@ -198,7 +220,8 @@ function Doll:ScoreDelta()
     local S = ns.Score
     local total = 0
     for slotId, trying in pairs(self.trying) do
-        total = total + (S:Value(trying.link, trying.id)) - (S:EquippedValue(slotId))
+        local gain = trying.empty and 0 or S:Value(trying.link, trying.id)
+        total = total + gain - (S:EquippedValue(slotId))
     end
     return total
 end
@@ -404,8 +427,12 @@ function Doll:RefreshModel()
         m:SetUnit("player")
         m:Undress()
         m:Dress()
-        for _, trying in pairs(self.trying) do
-            if trying.link then m:TryOn(trying.link) end
+        for slotId, trying in pairs(self.trying) do
+            if trying.link then
+                m:TryOn(trying.link)
+            elseif trying.empty and m.UndressSlot then
+                m:UndressSlot(slotId)
+            end
         end
     end)
     if not ok then
