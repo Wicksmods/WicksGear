@@ -1,5 +1,40 @@
 # Wick's Gear
 
+## 0.9.1
+
+### Browse four sources, not one
+
+Dungeons as before, plus what the four gear professions make, quest
+rewards worth crossing a zone for, and everything grouped by the set it
+belongs to. 1294 crafted pieces and 179 blue and better rewards join the
+408 from the dungeons.
+
+A search box spans whichever source is showing, matching the item, the
+boss or profession, the slot, and where it comes from. Typing flattens
+the list, because a collapsed group hiding the match is the opposite of
+searching.
+
+### Set bonuses
+
+A set says how much of it you are wearing, which bonuses that has
+earned, and what the next one wants. The count comes off your equipped
+slots and the bonus text comes from the client's own tooltip, so both
+are this build's rather than a database's guess at it.
+
+### Clicks
+
+Click a row to try it on in the compare view, ctrl-click to open it in
+the dressing room, shift-click to put it in chat. An Equippable toggle
+hides what your class cannot wear.
+
+### Fixed
+
+- Most items would not shift-click into chat. An item link is a fixed
+  shape on a given build and ours was one field long; it reads the shape
+  off the gear on your back now.
+- Clicking an item sometimes reopened the group it was in, because rows
+  are pooled and one that had been a group header kept its toggle.
+
 ## 0.9.0
 
 One version across the suite for the Forever beta. Every addon carried a
