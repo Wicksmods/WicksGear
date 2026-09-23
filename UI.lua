@@ -406,8 +406,21 @@ function UI:FillBrowse()
             else
                 head.mid:SetText("")
             end
-            head.right:SetText(("%d"):format(#rows))
-            tint(head.right, C.muted)
+            -- On the Sets tab the count that matters is how much of it
+            -- you are wearing, not how many pieces exist.
+            local prog = source == "sets" and S:SetProgress(group)
+            if prog then
+                head.right:SetText(("%d/%d"):format(prog.worn, prog.total))
+                tint(head.right, prog.worn > 0 and C.fel or C.muted)
+                if prog.next then
+                    head.mid:SetText(("next at %d"):format(prog.next.pieces))
+                elseif #prog.earned > 0 then
+                    head.mid:SetText("all bonuses")
+                end
+            else
+                head.right:SetText(("%d"):format(#rows))
+                tint(head.right, C.muted)
+            end
             head:Show()
 
             if pane.open[group] then
@@ -415,6 +428,38 @@ function UI:FillBrowse()
                 for _, entry in ipairs(rows) do want[#want + 1] = entry.id end
                 ns.Score:WantFirst(want)
                 for _, entry in ipairs(rows) do itemRow(entry, group, true) end
+                -- What the set gives, with the earned ones lit.
+                if prog then
+                    for _, b in ipairs(prog.bonuses or {}) do
+                        i = i + 1
+                        local r = acquire(pane, i)
+                        r.itemID, r.link, r.note = nil, nil, nil
+                        r.icon:SetTexture(nil)
+                        r.dimmed = nil
+                        r.icon:SetDesaturated(false)
+                        r.icon:SetAlpha(1)
+                        local on = prog.worn >= b.pieces
+                        r.left:SetText(("   |cff%s%d pieces:|r %s")
+                            :format(on and "4FC778" or "6a6258", b.pieces, b.text))
+                        tint(r.left, on and C.text or C.muted)
+                        r.mid:SetText("")
+                        r.right:SetText(on and "active" or "")
+                        tint(r.right, C.fel)
+                        r:SetScript("OnClick", nil)
+                        r:Show()
+                    end
+                    if prog.approximate and #(prog.bonuses or {}) > 0 then
+                        i = i + 1
+                        local r = acquire(pane, i)
+                        r.itemID, r.link, r.note = nil, nil, nil
+                        r.icon:SetTexture(nil)
+                        r.left:SetText("   |cff6a6258Bonuses are Classic's. Forever publishes none yet.|r")
+                        r.mid:SetText("")
+                        r.right:SetText("")
+                        r:SetScript("OnClick", nil)
+                        r:Show()
+                    end
+                end
             end
 
             head:SetScript("OnClick", function()

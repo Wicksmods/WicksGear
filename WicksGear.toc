@@ -11,6 +11,7 @@
 Data.lua
 DataCrafted.lua
 DataQuests.lua
+DataSetBonus.lua
 Score.lua
 Core.lua
 Doll.lua

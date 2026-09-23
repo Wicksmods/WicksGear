@@ -487,6 +487,104 @@ S.STAT_ORDER = { "str", "agi", "sta", "int", "spi", "armor" }
 S.STAT_LABEL = { str = "Strength", agi = "Agility", sta = "Stamina",
                  int = "Intellect", spi = "Spirit", armor = "Armor" }
 
+-- What the client says a set gives.
+--
+-- The item tooltip lists the bonuses, which means the client holds
+-- Forever's own set data. That beats the scraped Classic text, which is
+-- a guess about this build, so the client is asked first and the scrape
+-- is only a fallback for a set nothing here can answer for.
+--
+-- Cached per set: reading a tooltip is cheap but not free, and the
+-- answer cannot change inside a session.
+local clientBonus = {}
+
+-- Both wordings, because the phrasing has moved across expansions.
+local function bonusFrom(text)
+    local n, effect = text:match("^%((%d+)%)%s*Set%s*:%s*(.+)$")
+    if not n then n, effect = text:match("^(%d+)%s+pieces?:%s*(.+)$") end
+    if n and effect and effect ~= "" then
+        return tonumber(n), (effect:gsub("%s+$", ""))
+    end
+end
+
+function S:ClientSetBonuses(setName)
+    if clientBonus[setName] ~= nil then
+        return clientBonus[setName] or nil
+    end
+    -- Any item of the set the client can describe will carry the whole
+    -- list, so the first one that answers is enough.
+    for id, e in pairs(ns.ENTRY or {}) do
+        if e.set == setName then
+            local link = self:LinkFor(id)
+            local d = link and C_TooltipInfo and C_TooltipInfo.GetHyperlink
+                and C_TooltipInfo.GetHyperlink(link)
+            if d and d.lines then
+                local rows = {}
+                for _, line in ipairs(d.lines) do
+                    local pieces, effect = bonusFrom((line.leftText or ""):gsub("^%s+", ""))
+                    if pieces then rows[#rows + 1] = { pieces = pieces, text = effect } end
+                end
+                if #rows > 0 then
+                    table.sort(rows, function(a, b) return a.pieces < b.pieces end)
+                    clientBonus[setName] = rows
+                    return rows
+                end
+            end
+        end
+    end
+    clientBonus[setName] = false
+    return nil
+end
+
+-- How much of a set is actually on the character, and what that has
+-- earned.
+--
+-- The count is read off the equipped slots, so it is right for this
+-- build whatever Wowhead thinks. The bonus text is Classic's, because
+-- Forever publishes none, which is why the caller is told so rather
+-- than left to assume.
+function S:SetProgress(setName)
+    if not setName then return nil end
+    local worn, total = 0, 0
+    -- Which ids belong to this set, from whichever source carries them.
+    for id, e in pairs(ns.ENTRY or {}) do
+        if e.set == setName then
+            total = total + 1
+            if self:IsEquipped(id) then worn = worn + 1 end
+        end
+    end
+    if total == 0 then return nil end
+
+    -- The client first: it is this build. The scrape is Classic's guess
+    -- at it and only stands in when the client will not say.
+    local fromClient = self:ClientSetBonuses(setName)
+    local list = fromClient or (ns.SET_BONUS or {})[setName] or {}
+
+    local earned, next_ = {}, nil
+    for _, b in ipairs(list) do
+        if worn >= b.pieces then
+            earned[#earned + 1] = b
+        elseif not next_ or b.pieces < next_.pieces then
+            next_ = b
+        end
+    end
+    return { worn = worn, total = total, earned = earned, next = next_,
+             bonuses = list, fromClient = fromClient ~= nil,
+             -- Only a fallback needs the warning. What the client said
+             -- about its own sets is not approximate.
+             approximate = fromClient == nil and ns.SET_BONUS_APPROXIMATE == true }
+end
+
+-- Whether this exact item is in one of the equipped slots.
+function S:IsEquipped(id)
+    if not GetInventoryItemID then return false end
+    for slot = 1, 19 do
+        local ok, worn = pcall(GetInventoryItemID, "player", slot)
+        if ok and worn == id then return true end
+    end
+    return false
+end
+
 function S:NormalStats(link)
     local out = {}
     if not link then return out end
