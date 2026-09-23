@@ -128,11 +128,29 @@ SlashCmdList.WICKSGEAR = function(input)
     elseif cmd == "browse" then ns.UI:Toggle("browse")
     elseif cmd == "upgrades" or cmd == "bis" then ns.UI:Toggle("upgrades")
     elseif cmd == "options" or cmd == "config" then A:OpenOptions()
+    elseif cmd:match("^link") then
+        -- What a link looks like on this build, ours beside the client's.
+        local id = tonumber(cmd:match("^link%s+(%d+)") or "")
+        A:Print(("this build uses %s fields in an item link"):format(
+            tostring(ns.Score:LinkFields() or "an unknown number of")))
+        local worn
+        for slot = 1, 19 do
+            local ok, l = pcall(GetInventoryItemLink, "player", slot)
+            if ok and l then worn = l break end
+        end
+        if worn then A:Print("yours:  " .. worn:gsub("|", "||")) end
+        if id then
+            local link, source = ns.Score:ChatLink(id)
+            A:Print(("ours:   %s  (%s)"):format(link and link:gsub("|", "||") or "none", tostring(source)))
+        else
+            A:Print("give an id to compare: /wgear link 279899")
+        end
     else
         A:Print("commands:")
         A:Print("  /wgear            what to chase, scored against what you wear")
         A:Print("  /wgear browse     what drops where, dungeon by dungeon")
         A:Print("  /wgear options    weights and what counts as your role")
+        A:Print("  /wgear link <id>  what an item link looks like here, ours beside the client's")
     end
 end
 

@@ -423,20 +423,63 @@ end
 
 -- A link you can put in chat.
 --
--- The client can only build one for an item it has met, and on this
--- beta that is a minority of the list. A hand-built link carries the id
--- and the name, which is all the receiving client needs: theirs looks
--- the item up for itself.
+-- The client can only build one for an item it has met, and on this beta
+-- that is a minority of the list, so the rest have to be hand built.
+--
+-- The first attempt wrote "|Hitem:279899|h[Name]|h", which carries
+-- everything a receiving client needs and still would not go in the chat
+-- box: an item link is a fixed shape on any given build and a one field
+-- one is not it. Rather than guess how many fields this build wants, ask
+-- it. The player is wearing items, every one of those gives a real link,
+-- and counting its fields gives the shape to match.
+local linkFields   -- learned, not assumed
+
+local function learnShape(link)
+    if type(link) ~= "string" then return end
+    local payload = link:match("|Hitem:([^|]*)|h")
+    if not payload then return end
+    local n = 1
+    for _ in payload:gmatch(":") do n = n + 1 end
+    if n > 1 then linkFields = n end
+end
+
+-- Read off what the player is wearing. Runs at login and again whenever a
+-- real link passes through, so a build that changes its mind is followed
+-- rather than argued with.
+function S:LearnLinkShape()
+    if linkFields then return linkFields end
+    for slot = 1, 19 do
+        local ok, link = pcall(GetInventoryItemLink, "player", slot)
+        if ok and link then
+            learnShape(link)
+            if linkFields then break end
+        end
+    end
+    return linkFields
+end
+
+function S:LinkFields() return linkFields end
+
 function S:ChatLink(id)
     local ok, _, link = pcall(C_Item.GetItemInfo, id)
-    if ok and link then return link end
+    if ok and link then
+        learnShape(link)
+        return link, "client"
+    end
+
+    -- Not met yet. Ask for it, so the next shift-click on this row gets
+    -- the client's own link rather than ours.
+    pcall(C_Item.RequestLoadItemDataByID, id)
+
     local e = ns.ENTRY[id]
     if not e or not e.name or e.name == "" then return nil end
     local c = QUALITY_COLOR[e.q or "common"] or QUALITY_COLOR.common
     -- %x wants whole numbers; the palette is fractions.
     local hex = ("%02x%02x%02x"):format(
         math.floor(c[1] * 255 + 0.5), math.floor(c[2] * 255 + 0.5), math.floor(c[3] * 255 + 0.5))
-    return ("|cff%s|Hitem:%d|h[%s]|h|r"):format(hex, id, e.name)
+    local fields = linkFields or self:LearnLinkShape() or 15
+    local payload = tostring(id) .. string.rep(":", fields - 1)
+    return ("|cff%s|Hitem:%s|h[%s]|h|r"):format(hex, payload, e.name), "built"
 end
 
 S.STAT_ORDER = { "str", "agi", "sta", "int", "spi", "armor" }
@@ -472,7 +515,10 @@ end
 function S:Init()
     -- Two events, because the two dialects announce this differently and
     -- either may be the one this build sends.
-    ns.RegisterEvents({ "GET_ITEM_INFO_RECEIVED" })
+    -- Learn what an item link looks like on this build before anything
+    -- needs to make one.
+    ns.RegisterEvents({ "GET_ITEM_INFO_RECEIVED", "PLAYER_ENTERING_WORLD" })
+    ns:On("PLAYER_ENTERING_WORLD", function() S:LearnLinkShape() end)
     ns:On("ITEM_DATA_LOAD_RESULT", function() ns.UI:ItemArrived() end)
     ns:On("GET_ITEM_INFO_RECEIVED", function() ns.UI:ItemArrived() end)
     -- Redraw the paperdoll when the character underneath it changes.

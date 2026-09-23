@@ -83,9 +83,18 @@ local function acquire(pane, i)
         -- works. s.link may be the bare "item:id" stand-in used for
         -- weighing, which is not a chat link, so ask for a real one.
         if IsShiftKeyDown() and ChatEdit_InsertLink then
-            local link = ns.Score:ChatLink(s.itemID)
-            if link then ChatEdit_InsertLink(link)
-            else ns.A:Print("no link for that one: the client has never seen it and it is not in our data either.") end
+            local link, source = ns.Score:ChatLink(s.itemID)
+            if not link then
+                ns.A:Print("no link for that one: the client has never seen it and it is not in our data either.")
+                return
+            end
+            -- InsertLink puts the text in the open chat box and answers
+            -- false when there is not one. Saying so beats looking broken.
+            if not ChatEdit_InsertLink(link) then
+                ns.A:Print("open the chat box first, then shift-click.")
+            elseif source == "built" then
+                ns.A:Print("the client has not met that item, so this link is ours. Shift-click again in a moment for the real one.")
+            end
         end
     end)
     -- Our own drag, between our own frames: the row puts an id down and
