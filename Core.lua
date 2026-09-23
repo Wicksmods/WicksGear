@@ -177,6 +177,14 @@ SlashCmdList.WICKSGEAR = function(input)
         A:Print(("quests:   %d groups, order %d"):format(
             count(ns.QUESTS), count(ns.QUESTS_ORDER)))
         A:Print(("entries indexed: %d"):format(count(ns.ENTRY)))
+        local f = ns.UI and ns.UI.lastFill
+        if f then
+            A:Print(("last draw: %s, %d groups, %d rows, %d open%s"):format(
+                f.source, f.groups, f.rows, f.open,
+                f.filtered and ", equippable only" or ""))
+        else
+            A:Print("last draw: the browse list has not been drawn yet")
+        end
         if type(ns.CRAFTED) == "table" then
             for k, v in pairs(ns.CRAFTED) do
                 A:Print(("   %s: %d"):format(tostring(k), count(v)))

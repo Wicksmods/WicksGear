@@ -426,6 +426,14 @@ function UI:FillBrowse()
 
     pane.list:SetHeight(math.max(1, i * ROW_H))
     pane.empty:Hide()
+    -- What this draw actually produced, for /wgear data. An empty view
+    -- looks the same whether the source had no groups or the rows were
+    -- built and put somewhere invisible.
+    self.lastFill = { source = source, groups = #order, rows = i,
+                      open = 0, filtered = onlyFits }
+    for _ in pairs(pane.open or {}) do
+        self.lastFill.open = self.lastFill.open + 1
+    end
     local what = source == "dungeons" and "a dungeon"
         or source == "crafted" and "a profession"
         or source == "quests" and "a zone"
