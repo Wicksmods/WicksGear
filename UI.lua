@@ -35,6 +35,59 @@ end
 -- Rows
 -- ============================================================
 
+-- What a click on an item row does.
+--
+-- Bound by name rather than written inline, because rows are pooled: one
+-- used as a group header carries the header's toggle, and when that index
+-- is drawn as an item again it has to be given this back. Rebinding on
+-- every draw is cheaper than remembering which rows were headers.
+--
+--   click        our own viewer, on the Compare tab
+--   ctrl-click   the game's dressing room
+--   shift-click  the item into the chat box
+function UI.RowClick(s, button)
+    if not s.itemID then return end
+
+    if IsShiftKeyDown() and ChatEdit_InsertLink then
+        -- s.link may be the bare "item:id" stand-in used for weighing,
+        -- which is not a chat link, so ask for a real one.
+        local link, source = ns.Score:ChatLink(s.itemID)
+        if not link then
+            ns.A:Print("no link for that one: the client has never seen it and it is not in our data either.")
+            return
+        end
+        -- InsertLink puts the text in the open chat box and answers false
+        -- when there is not one. Saying so beats looking broken.
+        if not ChatEdit_InsertLink(link) then
+            ns.A:Print("open the chat box first, then shift-click.")
+        elseif source == "built" then
+            ns.A:Print("the client has not met that item, so this link is ours. Shift-click again in a moment for the real one.")
+        end
+        return
+    end
+
+    if IsControlKeyDown and IsControlKeyDown() then
+        -- The game already has somewhere to look at a piece on your own
+        -- model, so use it rather than building a second one.
+        local link = ns.Score:ChatLink(s.itemID)
+        local shown = false
+        if link then
+            for _, fn in ipairs({ "DressUpItemLink", "DressUpLink" }) do
+                local f = rawget(_G, fn)
+                if f and pcall(f, link) then shown = true break end
+            end
+        end
+        if not shown then ns.A:Print("the dressing room would not take that one.") end
+        return
+    end
+
+    -- Plain click, either button: on in our own viewer. Switching to the
+    -- tab as well, because trying something on where you cannot see it
+    -- looks the same as nothing happening.
+    ns.Doll:TryOn(s.itemID)
+    UI:Select("compare")
+end
+
 local function acquire(pane, i)
     pane.rows = pane.rows or {}
     local r = pane.rows[i]
@@ -75,29 +128,7 @@ local function acquire(pane, i)
     r:SetScript("OnLeave", function() GameTooltip:Hide() end)
     r:RegisterForClicks("AnyUp")
     r:RegisterForDrag("LeftButton")
-    r:SetScript("OnClick", function(s, button)
-        if button == "RightButton" and not IsShiftKeyDown() then
-            if s.itemID then ns.Doll:TryOn(s.itemID) end
-            return
-        end
-        -- Shift-click to link, the way every other list in the game
-        -- works. s.link may be the bare "item:id" stand-in used for
-        -- weighing, which is not a chat link, so ask for a real one.
-        if IsShiftKeyDown() and ChatEdit_InsertLink then
-            local link, source = ns.Score:ChatLink(s.itemID)
-            if not link then
-                ns.A:Print("no link for that one: the client has never seen it and it is not in our data either.")
-                return
-            end
-            -- InsertLink puts the text in the open chat box and answers
-            -- false when there is not one. Saying so beats looking broken.
-            if not ChatEdit_InsertLink(link) then
-                ns.A:Print("open the chat box first, then shift-click.")
-            elseif source == "built" then
-                ns.A:Print("the client has not met that item, so this link is ours. Shift-click again in a moment for the real one.")
-            end
-        end
-    end)
+    r:SetScript("OnClick", UI.RowClick)
     -- Our own drag, between our own frames: the row puts an id down and
     -- a paperdoll slot picks it up.
     r:SetScript("OnDragStart", function(s) UI.dragging = s.itemID end)
@@ -321,6 +352,9 @@ function UI:FillBrowse()
         local req = entry.req or 0
         r.right:SetText(req > 0 and ("req %d"):format(req) or "")
         setUsable(r, (info and S:Usable(info)) and true or false)
+        -- Take the handler back: this row may have been a group header
+        -- last time it was drawn, and would still be carrying its toggle.
+        r:SetScript("OnClick", UI.RowClick)
         r:Show()
     end
 
