@@ -44,6 +44,7 @@ local PROFILE_DEFAULTS = {
     role     = nil,      -- set for the classes that play two ways
     maxLevel = 0,        -- 0 means "whatever I could wear now"
     hideWorn = false,    -- drop anything not an upgrade
+    onlyEquippable = false,  -- browse: hide what this class cannot wear
 }
 
 local A = Core:NewAddon("WicksGear", {

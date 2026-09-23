@@ -281,6 +281,20 @@ function UI:FillBrowse()
         b:Show()
         b:SetAlpha(key == source and 1 or 0.55)
     end
+    if pane.equippable then pane.equippable:Show() end
+    local onlyFits = ns.db().onlyEquippable == true
+
+    -- Whether this character could wear it at all. Asked once per row and
+    -- again to decide whether a group has anything left worth opening.
+    local function fits(entry)
+        if not onlyFits then return true end
+        local info = S:Info(entry.id)
+        -- An item the client has not described yet is kept: hiding it
+        -- would make the list shrink as the answers arrive, which reads
+        -- as the addon losing things.
+        if not info then return true end
+        return S:Usable(info) and true or false
+    end
 
     -- One row for an item, wherever it came from. The middle column says
     -- the thing that is worth knowing about it in this source: the boss
@@ -316,7 +330,7 @@ function UI:FillBrowse()
         local found = 0
         for _, group in ipairs(order) do
             for _, entry in ipairs(groups[group] or {}) do
-                if matches(entry, group, needle) then
+                if matches(entry, group, needle) and fits(entry) then
                     found = found + 1
                     itemRow(entry, group, false)
                 end
@@ -334,6 +348,11 @@ function UI:FillBrowse()
 
     for _, group in ipairs(order) do
         local rows = groups[group]
+        if onlyFits and rows then
+            local keep = {}
+            for _, e in ipairs(rows) do if fits(e) then keep[#keep + 1] = e end end
+            rows = keep
+        end
         if rows and #rows > 0 then
             i = i + 1
             local head = acquire(pane, i)
@@ -386,14 +405,21 @@ end
 -- Frame
 -- ============================================================
 
-local function makePane(parent, plain)
+-- How far down the list starts. Browse carries a strip of source
+-- buttons and a search box above it; the other panes do not, and should
+-- not be pushed down for a strip they never show.
+local STRIP_H = 22
+
+local function makePane(parent, plain, withStrip)
     local pane = CreateFrame("Frame", nil, parent)
-    pane:SetPoint("TOPLEFT", 10, -Chrome.HEADER_H - TAB_H - 26)
+    local top = Chrome.HEADER_H + TAB_H + 26 + (withStrip and STRIP_H or 0)
+    pane:SetPoint("TOPLEFT", 10, -top)
     pane:SetPoint("BOTTOMRIGHT", -10, 10)
     pane:Hide()
 
     pane.head = Chrome:Text(parent, 10, C.muted)
-    pane.head:SetPoint("TOPLEFT", 12, -Chrome.HEADER_H - TAB_H - 10)
+    pane.head:SetPoint("TOPLEFT", 12, -Chrome.HEADER_H - TAB_H - 10
+        - (withStrip and STRIP_H or 0))
     pane.head:SetWidth(WIDTH - 24)
     pane.head:SetJustifyH("LEFT")
 
@@ -420,6 +446,10 @@ local function makePane(parent, plain)
 
     -- The search box sits in the header strip rather than the scrolling
     -- area, so it stays put while the list moves under it.
+    -- Only Browse has sources to switch between, or a list long enough
+    -- to want searching. Building the strip for every pane put two sets
+    -- of buttons on the same parent at the same point.
+    if withStrip then
     local search = CreateFrame("EditBox", nil, parent)
     search:SetSize(150, 16)
     search:SetPoint("TOPRIGHT", -12, -Chrome.HEADER_H - TAB_H - 8)
@@ -451,6 +481,17 @@ local function makePane(parent, plain)
         pane.sourceBtns[key] = b
         b:Hide()
     end
+
+    -- Dimming is enough for a dungeon's nine items and useless against
+    -- a profession's four hundred, most of which are the wrong armour
+    -- type for you.
+    pane.equippable = Chrome:Check(parent, "Equippable",
+        function() return ns.db().onlyEquippable == true end,
+        function(v) ns.db().onlyEquippable = v; UI:Refresh() end)
+    pane.equippable:SetPoint("TOPRIGHT", -12, -Chrome.HEADER_H - TAB_H - 26)
+    pane.equippable:Hide()
+    end
+
     pane.empty = Chrome:Text(pane, 11, C.muted)
     pane.empty:SetPoint("TOPLEFT", 2, -4)
     pane.empty:SetWidth(WIDTH - 40)
@@ -489,7 +530,7 @@ function UI:Build()
         b.under:Hide()
         b:SetScript("OnClick", function() UI:Select(def[1]) end)
         self.tabs[def[1]] = b
-        self.panes[def[1]] = makePane(p, def[1] == "compare")
+        self.panes[def[1]] = makePane(p, def[1] == "compare", def[1] == "browse")
         x = x + 84
     end
 
