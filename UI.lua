@@ -452,9 +452,13 @@ local function makePane(parent, plain, withStrip)
     -- to want searching. Building the strip for every pane put two sets
     -- of buttons on the same parent at the same point.
     if withStrip then
-    local search = CreateFrame("EditBox", nil, parent)
+    -- Parented to the pane, anchored to the panel. On the panel they
+    -- stayed visible on Upgrades and Compare, because only the pane and
+    -- its head are shown and hidden when a tab changes; on the pane they
+    -- follow the tab without Select having to know they exist.
+    local search = CreateFrame("EditBox", nil, pane)
     search:SetSize(150, 16)
-    search:SetPoint("TOPRIGHT", -12, -Chrome.HEADER_H - TAB_H - 8)
+    search:SetPoint("TOPRIGHT", parent, "TOPRIGHT", -12, -Chrome.HEADER_H - TAB_H - 8)
     search:SetAutoFocus(false)
     search:SetFontObject("GameFontHighlightSmall")
     search:SetTextInsets(4, 4, 0, 0)
@@ -476,8 +480,8 @@ local function makePane(parent, plain, withStrip)
     pane.sourceBtns = {}
     local sx = 0
     for _, key in ipairs(UI.SOURCES) do
-        local b = Chrome:Button(parent, UI.SOURCE_LABEL[key], 60, 16)
-        b:SetPoint("TOPLEFT", 12 + sx, -Chrome.HEADER_H - TAB_H - 8)
+        local b = Chrome:Button(pane, UI.SOURCE_LABEL[key], 60, 16)
+        b:SetPoint("TOPLEFT", parent, "TOPLEFT", 12 + sx, -Chrome.HEADER_H - TAB_H - 8)
         sx = sx + 63
         b:SetScript("OnClick", function() UI:SetSource(key) end)
         pane.sourceBtns[key] = b
@@ -487,14 +491,15 @@ local function makePane(parent, plain, withStrip)
     -- Dimming is enough for a dungeon's nine items and useless against
     -- a profession's four hundred, most of which are the wrong armour
     -- type for you.
-    pane.equippable = Chrome:Check(parent, "Equippable",
+    pane.equippable = Chrome:Check(pane, "Equippable",
         function() return ns.db().onlyEquippable == true end,
         function(v) ns.db().onlyEquippable = v; UI:Refresh() end)
     -- Chrome:Check is 220 wide by default with the box at its left edge,
     -- so anchored right the box lands in the middle of the panel and the
     -- help text runs into it. Sized to what it actually draws.
     pane.equippable:SetWidth(100)
-    pane.equippable:SetPoint("TOPRIGHT", -12, -Chrome.HEADER_H - TAB_H - 26)
+    pane.equippable:SetPoint("TOPRIGHT", parent, "TOPRIGHT", -12,
+        -Chrome.HEADER_H - TAB_H - 26)
     pane.equippable:Hide()
     end
 
