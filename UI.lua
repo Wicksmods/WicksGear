@@ -191,13 +191,17 @@ function UI:FillUpgrades()
                 local name = S:NameFor(cand.entry.id) or "|cff6a6258loading...|r"
                 r.left:SetText(("|cff8a8270%s|r %s"):format(S.SLOT_NAME[slot] or "?", name))
                 r.mid:SetText(cand.dungeon)
-                if have > 0 then
-                    r.right:SetText(("%+.0f"):format(delta))
-                    tint(r.right, delta > 0 and C.fel or C.muted)
-                else
-                    r.right:SetText(("%.0f"):format(cand.pts))
-                    tint(r.right, C.fel)
-                end
+                -- Rounded to a whole number before the sign goes on.
+                -- "%+.0f" on anything between minus a half and zero
+                -- prints "-0", which reads as a downgrade that is not
+                -- one.
+                local whole = math.floor(delta + 0.5)
+                if whole == 0 then whole = 0 end
+                r.right:SetText(("%+d"):format(whole))
+                -- An empty slot is still a gain, so it is signed like
+                -- the rest rather than printed bare, and always lit:
+                -- anything beats nothing.
+                tint(r.right, (have == 0 or whole > 0) and C.fel or C.muted)
                 r:Show()
             end
         end
@@ -395,6 +399,12 @@ function UI:FillBrowse()
             head.dimmed = nil
             head.icon:SetDesaturated(false)
             head.icon:SetAlpha(1)
+            -- Undo every mark setUsable leaves, not most of them. A row
+            -- that was a dimmed item last time it was drawn kept its grey
+            -- on the middle column and the name, so one dungeon in the
+            -- list looked disabled for no reason.
+            tint(head.left, C.text)
+            tint(head.mid, C.muted)
             head.left:SetText(("|cff4FC778%s|r"):format(group))
 
             -- Only a dungeon has a level bracket. A range worked out from
