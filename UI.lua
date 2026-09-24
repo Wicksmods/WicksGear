@@ -575,7 +575,13 @@ local function makePane(parent, plain, withStrip)
     -- follow the tab without Select having to know they exist.
     local search = CreateFrame("EditBox", nil, pane)
     search:SetSize(150, 16)
-    search:SetPoint("TOPRIGHT", parent, "TOPRIGHT", -12, -Chrome.HEADER_H - TAB_H - 8)
+    -- The pane's right edge, not the panel's. Anchored to the panel
+    -- these sat over the compare column, which is where the right edge
+    -- of the window now is. The pane already stops short of it, so
+    -- following the pane keeps them in the list's half whatever the
+    -- split is set to. 40 lifts them out of the pane and into the strip
+    -- above it: the pane starts 26 + STRIP_H down and the strip sits 8.
+    search:SetPoint("TOPRIGHT", pane, "TOPRIGHT", 0, 18 + STRIP_H)
     search:SetAutoFocus(false)
     search:SetFontObject("GameFontHighlightSmall")
     search:SetTextInsets(4, 4, 0, 0)
@@ -598,7 +604,7 @@ local function makePane(parent, plain, withStrip)
     local sx = 0
     for _, key in ipairs(UI.SOURCES) do
         local b = Chrome:Button(pane, UI.SOURCE_LABEL[key], 60, 16)
-        b:SetPoint("TOPLEFT", parent, "TOPLEFT", 12 + sx, -Chrome.HEADER_H - TAB_H - 8)
+        b:SetPoint("TOPLEFT", pane, "TOPLEFT", sx, 18 + STRIP_H)
         sx = sx + 63
         b:SetScript("OnClick", function() UI:SetSource(key) end)
         pane.sourceBtns[key] = b
@@ -615,8 +621,7 @@ local function makePane(parent, plain, withStrip)
     -- so anchored right the box lands in the middle of the panel and the
     -- help text runs into it. Sized to what it actually draws.
     pane.equippable:SetWidth(100)
-    pane.equippable:SetPoint("TOPRIGHT", parent, "TOPRIGHT", -12,
-        -Chrome.HEADER_H - TAB_H - 26)
+    pane.equippable:SetPoint("TOPRIGHT", pane, "TOPRIGHT", 0, STRIP_H)
     pane.equippable:Hide()
     end
 
