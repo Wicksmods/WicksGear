@@ -503,6 +503,48 @@ end
 S.STAT_ORDER = { "str", "agi", "sta", "int", "spi", "armor" }
 S.STAT_LABEL = { str = "Strength", agi = "Agility", sta = "Stamina",
                  int = "Intellect", spi = "Spirit", armor = "Armor" }
+-- Short forms, for a list row where the whole line has to fit.
+S.STAT_SHORT = { str = "Str", agi = "Agi", sta = "Sta",
+                 int = "Int", spi = "Spi", armor = "Armor" }
+
+-- What a piece gives, on one line. Armour last, because it is the one
+-- that is a flat number rather than a plus.
+function S:StatLine(id)
+    local st = self:StatsOf(id)
+    if not st then return "" end
+    local parts = {}
+    for _, key in ipairs(S.STAT_ORDER) do
+        local v = st[key]
+        if v and v ~= 0 and key ~= "armor" then
+            parts[#parts + 1] = ("+%d %s"):format(v, S.STAT_SHORT[key] or key)
+        end
+    end
+    if st.armor and st.armor ~= 0 then
+        parts[#parts + 1] = ("%d Armor"):format(st.armor)
+    end
+    return table.concat(parts, "  ")
+end
+
+-- The colour the game would print the name in. The client knows once it
+-- has met the item; our own data carries the quality as a word for the
+-- ones it has not.
+local QUALITY_RGB = {
+    [0] = { 0.62, 0.62, 0.62 }, [1] = { 1, 1, 1 }, [2] = { 0.12, 1, 0 },
+    [3] = { 0, 0.44, 0.87 }, [4] = { 0.64, 0.21, 0.93 }, [5] = { 1, 0.50, 0 },
+}
+local QUALITY_WORD = {
+    poor = 0, common = 1, uncommon = 2, rare = 3, epic = 4, legendary = 5,
+}
+
+function S:QualityRGB(id)
+    local info = self:Info(id)
+    local q = info and info.quality
+    if type(q) ~= "number" then
+        local e = ns.ENTRY[id]
+        q = e and QUALITY_WORD[e.q or ""]
+    end
+    return QUALITY_RGB[q] or QUALITY_RGB[1]
+end
 
 -- What the client says a set gives.
 --
@@ -570,14 +612,34 @@ end
 -- build whatever Wowhead thinks. The bonus text is Classic's, because
 -- Forever publishes none, which is why the caller is told so rather
 -- than left to assume.
-function S:SetProgress(setName)
+-- What you have on, slot to item id. The one place that asks the
+-- client, so the preview can hand over a changed copy instead.
+function S:EquippedIDs()
+    local out = {}
+    if not GetInventoryItemID then return out end
+    for slot = 1, 19 do
+        local ok, id = pcall(GetInventoryItemID, "player", slot)
+        if ok and id then out[slot] = id end
+    end
+    return out
+end
+
+-- `worn` takes a slot-to-id map, which is what lets the compare column
+-- count the pieces you are trying on. Two pieces of a set in the
+-- preview and no two-piece bonus shown is the column failing at the one
+-- job it has. Nothing passed means the gear you actually have on.
+function S:SetProgress(setName, wearing)
     if not setName then return nil end
+    wearing = wearing or self:EquippedIDs()
+    local has = {}
+    for _, id in pairs(wearing) do has[id] = true end
+
     local worn, total = 0, 0
     -- Which ids belong to this set, from whichever source carries them.
     for id, e in pairs(ns.ENTRY or {}) do
         if e.set == setName then
             total = total + 1
-            if self:IsEquipped(id) then worn = worn + 1 end
+            if has[id] then worn = worn + 1 end
         end
     end
     if total == 0 then return nil end
@@ -606,16 +668,15 @@ end
 -- rows ready to print. Only the earned ones: what a set would give at
 -- four pieces when you have two is a tooltip's business, not a readout
 -- of what you have.
-function S:EquippedSetBonuses()
+function S:EquippedSetBonuses(wearing)
+    wearing = wearing or self:EquippedIDs()
     local seen, out = {}, {}
-    if not GetInventoryItemID then return out end
-    for slot = 1, 19 do
-        local ok, id = pcall(GetInventoryItemID, "player", slot)
-        local e = ok and id and ns.ENTRY[id]
+    for _, id in pairs(wearing) do
+        local e = ns.ENTRY[id]
         local set = e and e.set
         if set and not seen[set] then
             seen[set] = true
-            local prog = self:SetProgress(set)
+            local prog = self:SetProgress(set, wearing)
             for _, b in ipairs((prog and prog.earned) or {}) do
                 out[#out + 1] = { set = set, worn = prog.worn, total = prog.total,
                                   pieces = b.pieces, text = b.text }

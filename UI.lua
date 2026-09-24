@@ -10,7 +10,11 @@ local C = Chrome.Colors
 local UI = {}
 ns.UI = UI
 
-local ROW_H = 20
+-- A row is three lines now: name, stats, source. Headers keep one, so
+-- rows are placed off a running cursor rather than index times height.
+local ROW_H = 46
+local HEAD_H = 22
+local ICON_H = 38
 local TAB_H = 22
 -- Two columns. The lists take the left and keep their tabs; the doll
 -- and the stats hold the right and are always on, so trying something
@@ -39,7 +43,10 @@ local function setUsable(row, usable)
     row.dimmed = not usable
     row.icon:SetDesaturated(not usable)
     row.icon:SetAlpha(usable and 1 or 0.3)
-    tint(row.left, usable and C.text or UNUSABLE)
+    -- The name keeps its quality colour when the row is usable; the
+    -- caller sets it, so only the unusable case is forced here.
+    if not usable then tint(row.left, UNUSABLE) end
+    tint(row.stats, usable and C.fel or UNUSABLE)
     tint(row.mid, usable and C.muted or UNUSABLE)
     tint(row.right, usable and C.muted or UNUSABLE)
 end
@@ -106,30 +113,38 @@ local function acquire(pane, i)
     if r then return r end
     r = CreateFrame("Button", nil, pane.list)
     r:SetHeight(ROW_H)
-    r:SetPoint("TOPLEFT", 0, -(i - 1) * ROW_H)
-    r:SetPoint("TOPRIGHT", 0, -(i - 1) * ROW_H)
 
     r.icon = r:CreateTexture(nil, "ARTWORK")
-    r.icon:SetSize(16, 16)
-    r.icon:SetPoint("LEFT", 2, 0)
+    r.icon:SetSize(ICON_H, ICON_H)
+    r.icon:SetPoint("TOPLEFT", 3, -4)
     r.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
 
-    r.left = Chrome:Text(r, 11)
-    r.left:SetPoint("LEFT", r.icon, "RIGHT", 6, 0)
-    r.left:SetWidth(190)
+    -- Line one: the name, in the colour the game would print it.
+    r.left = Chrome:Text(r, 12)
+    r.left:SetPoint("TOPLEFT", ICON_H + 10, -5)
     r.left:SetJustifyH("LEFT")
+    r.left:SetWordWrap(false)
 
     -- The score sits at the right edge with a lane of its own, and the
     -- source fills whatever is between the name and it. Fixed widths
     -- here meant that in a narrow pane the source ran under the score
     -- and both became unreadable: "Ragef" over "+11".
-    r.right = Chrome:Text(r, 11, C.fel)
-    r.right:SetPoint("RIGHT", -4, 0)
+    r.right = Chrome:Text(r, 12, C.fel)
+    r.right:SetPoint("TOPRIGHT", -6, -5)
     r.right:SetWidth(58)
     r.right:SetJustifyH("RIGHT")
+    -- Now that the score exists, stop the name before it.
+    r.left:SetPoint("RIGHT", r.right, "LEFT", -6, 0)
+
+    -- Line two: what it gives. Line three: where it comes from.
+    r.stats = Chrome:Text(r, 10, C.fel)
+    r.stats:SetPoint("TOPLEFT", ICON_H + 10, -20)
+    r.stats:SetPoint("RIGHT", r.right, "LEFT", -6, 0)
+    r.stats:SetJustifyH("LEFT")
+    r.stats:SetWordWrap(false)
 
     r.mid = Chrome:Text(r, 10, C.muted)
-    r.mid:SetPoint("LEFT", r.left, "RIGHT", 4, 0)
+    r.mid:SetPoint("TOPLEFT", ICON_H + 10, -33)
     r.mid:SetPoint("RIGHT", r.right, "LEFT", -6, 0)
     r.mid:SetJustifyH("LEFT")
     r.mid:SetWordWrap(false)
@@ -158,6 +173,20 @@ end
 
 local function clear(pane)
     for _, r in ipairs(pane.rows or {}) do r:Hide() end
+    pane.cursor = 0
+end
+
+-- Put a row at the bottom of what is drawn so far and move the cursor
+-- past it. Fixed heights would mean a group header taking three lines
+-- of room to say one word.
+local function place(pane, r, h)
+    pane.cursor = pane.cursor or 0
+    r:SetHeight(h)
+    r:ClearAllPoints()
+    r:SetPoint("TOPLEFT", 0, -pane.cursor)
+    r:SetPoint("TOPRIGHT", 0, -pane.cursor)
+    pane.cursor = pane.cursor + h
+    r:Show()
 end
 
 -- ============================================================
@@ -207,9 +236,13 @@ function UI:FillUpgrades()
                     cand.entry.from and (" from " .. cand.entry.from) or "")
                 r.icon:SetTexture(cand.info.icon)
                 setUsable(r, true)
-                local name = S:NameFor(cand.entry.id) or "|cff6a6258loading...|r"
+                local name = S:NameFor(cand.entry.id) or "loading..."
                 r.left:SetText(("|cff8a8270%s|r %s"):format(S.SLOT_NAME[slot] or "?", name))
-                r.mid:SetText(cand.dungeon)
+                local qc = S:QualityRGB(cand.entry.id)
+                r.left:SetTextColor(qc[1], qc[2], qc[3])
+                r.stats:SetText(S:StatLine(cand.entry.id))
+                r.mid:SetText(("%s  %s%s"):format(cand.dungeon, cand.entry.how,
+                    cand.entry.from and (" from " .. cand.entry.from) or ""))
                 -- Rounded to a whole number before the sign goes on.
                 -- "%+.0f" on anything between minus a half and zero
                 -- prints "-0", which reads as a downgrade that is not
@@ -221,12 +254,12 @@ function UI:FillUpgrades()
                 -- the rest rather than printed bare, and always lit:
                 -- anything beats nothing.
                 tint(r.right, (have == 0 or whole > 0) and C.fel or C.muted)
-                r:Show()
+                place(pane, r, ROW_H)
             end
         end
     end
 
-    pane.list:SetHeight(math.max(1, i * ROW_H))
+    pane.list:SetHeight(math.max(1, pane.cursor or 0))
     pane.empty:SetShown(shown == 0)
     if shown == 0 then
         pane.empty:SetText(db.hideWorn
@@ -361,24 +394,25 @@ function UI:FillBrowse()
         r.link = S:LinkFor(entry.id)
         r.note = nil
         r.icon:SetTexture(info and info.icon or nil)
-        r.left:SetText(("%s%s"):format(indent and "   " or "",
-            S:NameFor(entry.id) or entry.name or "|cff6a6258loading...|r"))
-        if entry.skill then
-            r.mid:SetText(("skill %d"):format(entry.skill))
-        elseif entry.from then
-            r.mid:SetText(entry.from)
-        elseif entry.how == "quest" then
-            r.mid:SetText("quest reward")
-        else
-            r.mid:SetText(group or "")
-        end
+        r.left:SetText(("%s%s"):format(indent and "  " or "",
+            S:NameFor(entry.id) or entry.name or "loading..."))
+        local qc = S:QualityRGB(entry.id)
+        r.left:SetTextColor(qc[1], qc[2], qc[3])
+        r.stats:SetText(S:StatLine(entry.id))
+        -- Where it comes from, and what it wants of you.
+        local where
+        if entry.skill then where = ("skill %d"):format(entry.skill)
+        elseif entry.from then where = entry.from
+        elseif entry.how == "quest" then where = "quest reward"
+        else where = group or "" end
         local req = entry.req or 0
-        r.right:SetText(req > 0 and ("req %d"):format(req) or "")
+        r.mid:SetText(req > 0 and ("%s  req %d"):format(where, req) or where)
+        r.right:SetText("")
         setUsable(r, (info and S:Usable(info)) and true or false)
         -- Take the handler back: this row may have been a group header
         -- last time it was drawn, and would still be carrying its toggle.
         r:SetScript("OnClick", UI.RowClick)
-        r:Show()
+        place(pane, r, ROW_H)
     end
 
     -- Searching flattens the list. A collapsed group hiding the match is
@@ -393,7 +427,7 @@ function UI:FillBrowse()
                 end
             end
         end
-        pane.list:SetHeight(math.max(1, i * ROW_H))
+        pane.list:SetHeight(math.max(1, pane.cursor or 0))
         pane.empty:SetShown(found == 0)
         if found == 0 then
             pane.empty:SetText("Nothing matches. Try a slot, a name, or where it comes from.")
@@ -450,7 +484,7 @@ function UI:FillBrowse()
                 head.right:SetText(("%d"):format(#rows))
                 tint(head.right, C.muted)
             end
-            head:Show()
+            place(pane, head, HEAD_H)
 
             if pane.open[group] then
                 local want = {}
@@ -473,7 +507,7 @@ function UI:FillBrowse()
         end
     end
 
-    pane.list:SetHeight(math.max(1, i * ROW_H))
+    pane.list:SetHeight(math.max(1, pane.cursor or 0))
     pane.empty:Hide()
     -- What this draw actually produced, for /wgear data. An empty view
     -- looks the same whether the source had no groups or the rows were

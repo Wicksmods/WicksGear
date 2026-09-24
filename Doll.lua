@@ -263,6 +263,17 @@ local function current(key)
     return effective or 0
 end
 
+-- What you would have on if you kept the preview: whatever is being
+-- tried on, and the equipped gear everywhere else. An emptied slot, the
+-- off hand a two-hander takes with it, is empty here too.
+function Doll:Wearing()
+    local out = ns.Score:EquippedIDs()
+    for slotId, trying in pairs(self.trying) do
+        out[slotId] = (not trying.empty) and trying.id or nil
+    end
+    return out
+end
+
 function Doll:RefreshStats()
     local S = ns.Score
     local deltas = self:Deltas()
@@ -290,10 +301,21 @@ function Doll:RefreshStats()
 
     -- What the gear you have on is actually giving you.
     if self.setInfo then
-        local lines = {}
+        -- Counting the preview, not just the gear on your back: two
+        -- pieces of a set tried on should show the two-piece bonus.
+        local wearing = self:Wearing()
+        local nowSets = {}
         for _, got in ipairs(S:EquippedSetBonuses()) do
-            lines[#lines + 1] = ("%s (%d/%d): %s")
-                :format(got.set, got.worn, got.total, got.text)
+            nowSets[got.set .. "/" .. got.pieces] = true
+        end
+        local lines = {}
+        for _, got in ipairs(S:EquippedSetBonuses(wearing)) do
+            -- "You would get this" and "you have this" are different
+            -- claims, and this column shows both at once.
+            local already = nowSets[got.set .. "/" .. got.pieces]
+            lines[#lines + 1] = ("%s (%d/%d): %s%s")
+                :format(got.set, got.worn, got.total, got.text,
+                    already and "" or "  (would gain)")
         end
         self.setInfo:SetText(table.concat(lines, "\n"))
     end
