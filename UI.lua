@@ -12,7 +12,7 @@ ns.UI = UI
 
 -- A row is three lines now: name, stats, source. Headers keep one, so
 -- rows are placed off a running cursor rather than index times height.
-local ROW_H = 46
+local ROW_H = 50
 local HEAD_H = 22
 local ICON_H = 38
 local TAB_H = 22
@@ -114,6 +114,23 @@ local function acquire(pane, i)
     r = CreateFrame("Button", nil, pane.list)
     r:SetHeight(ROW_H)
 
+    -- Every other item row, so three lines read as one block instead
+    -- of as three loose lines next to three more.
+    r.stripe = Chrome:Texture(r, "BACKGROUND", C.shadow)
+    r.stripe:SetAllPoints()
+    r.stripe:SetAlpha(0.5)
+    r.stripe:Hide()
+
+    -- A group is a group, not an item with less to say.
+    r.headBg = Chrome:Texture(r, "BACKGROUND", C.shadow)
+    r.headBg:SetAllPoints()
+    r.headBg:Hide()
+    r.headRule = Chrome:Texture(r, "BORDER", C.border)
+    r.headRule:SetPoint("BOTTOMLEFT")
+    r.headRule:SetPoint("BOTTOMRIGHT")
+    r.headRule:SetHeight(1)
+    r.headRule:Hide()
+
     -- Behind everything: the wash that says this one is on the doll.
     r.sel = Chrome:Texture(r, "BACKGROUND", C.fel)
     r.sel:SetPoint("TOPLEFT", 1, -1)
@@ -128,12 +145,23 @@ local function acquire(pane, i)
 
     r.icon = r:CreateTexture(nil, "ARTWORK")
     r.icon:SetSize(ICON_H, ICON_H)
-    r.icon:SetPoint("TOPLEFT", 3, -4)
+    r.icon:SetPoint("TOPLEFT", 5, -6)
     r.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    -- The chrome the rest of the suite puts round things, and it stops
+    -- the art bleeding into the background at the edges.
+    r.iconEdge = Chrome:Texture(r, "BORDER", C.border)
+    r.iconEdge:SetPoint("TOPLEFT", r.icon, "TOPLEFT", -1, 1)
+    r.iconEdge:SetPoint("BOTTOMRIGHT", r.icon, "BOTTOMRIGHT", 1, -1)
+    r.iconEdge:Hide()
+
+    -- The rows are clickable and nothing said so.
+    r.hl = r:CreateTexture(nil, "HIGHLIGHT")
+    r.hl:SetAllPoints()
+    r.hl:SetColorTexture(1, 1, 1, 0.06)
 
     -- Line one: the name, in the colour the game would print it.
     r.left = Chrome:Text(r, 12)
-    r.left:SetPoint("TOPLEFT", ICON_H + 10, -5)
+    r.left:SetPoint("TOPLEFT", ICON_H + 12, -7)
     r.left:SetJustifyH("LEFT")
     r.left:SetWordWrap(false)
 
@@ -142,7 +170,7 @@ local function acquire(pane, i)
     -- here meant that in a narrow pane the source ran under the score
     -- and both became unreadable: "Ragef" over "+11".
     r.right = Chrome:Text(r, 12, C.fel)
-    r.right:SetPoint("TOPRIGHT", -6, -5)
+    r.right:SetPoint("TOPRIGHT", -6, -7)
     r.right:SetWidth(58)
     r.right:SetJustifyH("RIGHT")
 
@@ -159,13 +187,13 @@ local function acquire(pane, i)
 
     -- Line two: what it gives. Line three: where it comes from.
     r.stats = Chrome:Text(r, 10, C.fel)
-    r.stats:SetPoint("TOPLEFT", ICON_H + 10, -20)
+    r.stats:SetPoint("TOPLEFT", ICON_H + 12, -22)
     r.stats:SetPoint("RIGHT", r.right, "LEFT", -6, 0)
     r.stats:SetJustifyH("LEFT")
     r.stats:SetWordWrap(false)
 
     r.mid = Chrome:Text(r, 10, C.muted)
-    r.mid:SetPoint("TOPLEFT", ICON_H + 10, -33)
+    r.mid:SetPoint("TOPLEFT", ICON_H + 12, -35)
     r.mid:SetPoint("RIGHT", r.right, "LEFT", -6, 0)
     r.mid:SetJustifyH("LEFT")
     r.mid:SetWordWrap(false)
@@ -195,6 +223,7 @@ end
 local function clear(pane)
     for _, r in ipairs(pane.rows or {}) do r:Hide() end
     pane.cursor = 0
+    pane.banded = false
 end
 
 -- Rows are pooled and serve two jobs. A header is one line, so the two
@@ -211,6 +240,10 @@ end
 
 local function asHeader(r)
     setPreviewed(r, false)
+    r.stripe:Hide()
+    r.headBg:Show()
+    r.headRule:Show()
+    r.iconEdge:Hide()
     r.stats:SetText("")
     r.mid:SetText("")
     r.icon:SetTexture(nil)
@@ -222,6 +255,9 @@ end
 
 local function asItem(r)
     r.note2:SetText("")
+    r.headBg:Hide()
+    r.headRule:Hide()
+    r.iconEdge:Show()
     setPreviewed(r, ns.Doll:IsTrying(r.itemID))
 end
 
@@ -230,6 +266,12 @@ end
 -- of room to say one word.
 local function place(pane, r, h)
     pane.cursor = pane.cursor or 0
+    -- Banding is per item row, so a header does not take a turn and
+    -- leave two same-shaded rows against each other underneath it.
+    if h == ROW_H then
+        pane.banded = not pane.banded
+        r.stripe:SetShown(pane.banded)
+    end
     r:SetHeight(h)
     r:ClearAllPoints()
     r:SetPoint("TOPLEFT", 0, -pane.cursor)
@@ -436,7 +478,7 @@ function UI:FillBrowse()
     -- One row for an item, wherever it came from. The middle column says
     -- the thing that is worth knowing about it in this source: the boss
     -- for a drop, the skill for a recipe, the group for a set.
-    local function itemRow(entry, group, indent)
+    local function itemRow(entry, group)
         local info = S:Info(entry.id)
         i = i + 1
         local r = acquire(pane, i)
@@ -444,8 +486,7 @@ function UI:FillBrowse()
         r.link = S:LinkFor(entry.id)
         r.note = nil
         r.icon:SetTexture(info and info.icon or nil)
-        r.left:SetText(("%s%s"):format(indent and "  " or "",
-            S:NameFor(entry.id) or entry.name or "loading..."))
+        r.left:SetText(S:NameFor(entry.id) or entry.name or "loading...")
         local qc = S:QualityRGB(entry.id)
         r.left:SetTextColor(qc[1], qc[2], qc[3])
         r.stats:SetText(S:StatLine(entry.id))
@@ -474,7 +515,7 @@ function UI:FillBrowse()
             for _, entry in ipairs(groups[group] or {}) do
                 if matches(entry, group, needle) and fits(entry) then
                     found = found + 1
-                    itemRow(entry, group, false)
+                    itemRow(entry, group)
                 end
             end
         end
@@ -537,7 +578,7 @@ function UI:FillBrowse()
                 local want = {}
                 for _, entry in ipairs(rows) do want[#want + 1] = entry.id end
                 ns.Score:WantFirst(want)
-                for _, entry in ipairs(rows) do itemRow(entry, group, true) end
+                for _, entry in ipairs(rows) do itemRow(entry, group) end
                 -- The bonuses themselves used to be rows here, in a
                 -- column sized for one line of item name, carrying three
                 -- lines of bonus text. They wrapped into the row below.
