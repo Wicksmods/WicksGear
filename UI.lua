@@ -25,10 +25,12 @@ local TAB_H = 22
 -- spends what it is given on the character model, which is the part
 -- worth the room.
 --
--- 520 high: the stacked doll runs to 426 points and the "Take it all
--- off" button owns the bottom 24, which 500 does not clear.
+-- The height is what the stacked doll needs plus room for the set
+-- bonuses to read without scrolling, which is where most screenshots
+-- are taken. The bonus block still scrolls past that, since it is as
+-- long as the gear makes it.
 local GUTTER = 10
-local WIDTH, HEIGHT = 860, 673
+local WIDTH, HEIGHT = 860, 686
 local COMPARE_W = math.floor(WIDTH * 0.4) - GUTTER * 2
 
 local function tint(fs, c) fs:SetTextColor(c[1], c[2], c[3], c[4] or 1) end
