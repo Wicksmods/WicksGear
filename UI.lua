@@ -12,19 +12,20 @@ ns.UI = UI
 
 local ROW_H = 20
 local TAB_H = 22
--- Two columns. The lists take the left two thirds and keep their tabs;
--- the doll and the stats hold the right third and are always on, so
--- trying something on never costs you your place in the list.
+-- Two columns. The lists take the left and keep their tabs; the doll
+-- and the stats hold the right and are always on, so trying something
+-- on never costs you your place in the list.
 --
--- COMPARE_W is what the doll actually needs once it is stacked portrait:
--- two 30px slot columns either side of a 124px model, plus margins. The
--- window is three times that plus the gutter, which is where 2/3 and
--- 1/3 come from rather than a number picked to look right.
-local COMPARE_W = 236
+-- Sixty/forty off the window width, rather than the window being
+-- derived from the narrowest the doll could be squeezed into. The doll
+-- spends what it is given on the character model, which is the part
+-- worth the room.
+--
+-- 520 high: the stacked doll runs to 426 points and the "Take it all
+-- off" button owns the bottom 24, which 500 does not clear.
 local GUTTER = 10
--- 520, not 500: the stacked doll runs to 426 points and the "Take it
--- all off" button owns the bottom 24, which 500 does not quite clear.
-local WIDTH, HEIGHT = COMPARE_W * 3 + GUTTER * 2, 520
+local WIDTH, HEIGHT = 860, 520
+local COMPARE_W = math.floor(WIDTH * 0.4) - GUTTER * 2
 
 local function tint(fs, c) fs:SetTextColor(c[1], c[2], c[3], c[4] or 1) end
 
@@ -118,13 +119,20 @@ local function acquire(pane, i)
     r.left:SetWidth(190)
     r.left:SetJustifyH("LEFT")
 
-    r.mid = Chrome:Text(r, 10, C.muted)
-    r.mid:SetPoint("LEFT", r.left, "RIGHT", 4, 0)
-    r.mid:SetWidth(120)
-    r.mid:SetJustifyH("LEFT")
-
+    -- The score sits at the right edge with a lane of its own, and the
+    -- source fills whatever is between the name and it. Fixed widths
+    -- here meant that in a narrow pane the source ran under the score
+    -- and both became unreadable: "Ragef" over "+11".
     r.right = Chrome:Text(r, 11, C.fel)
     r.right:SetPoint("RIGHT", -4, 0)
+    r.right:SetWidth(58)
+    r.right:SetJustifyH("RIGHT")
+
+    r.mid = Chrome:Text(r, 10, C.muted)
+    r.mid:SetPoint("LEFT", r.left, "RIGHT", 4, 0)
+    r.mid:SetPoint("RIGHT", r.right, "LEFT", -6, 0)
+    r.mid:SetJustifyH("LEFT")
+    r.mid:SetWordWrap(false)
 
     r:SetScript("OnEnter", function(s)
         if not s.link and not s.itemID then return end

@@ -453,10 +453,13 @@ function Doll:Build(pane)
     -- spreading: slots either side of the model, weapons beneath them,
     -- then the stats. Measured off the pane so it stays centred if the
     -- column is ever resized.
-    local MODEL_W = 124
     local GAP = 8
-    local block = ICON + GAP + MODEL_W + GAP + ICON
     local W = tonumber(pane:GetWidth()) or 236
+    -- The slots are a fixed icon wide and the stat rows only have to be
+    -- legible, so spare width goes to the model. Capped, because past
+    -- about this the character is just large rather than clearer.
+    local MODEL_W = math.max(124, math.min(200, W - ICON * 2 - GAP * 2 - 24))
+    local block = ICON + GAP + MODEL_W + GAP + ICON
     local x0 = math.max(4, math.floor((W - block) / 2))
     local ROWS = math.max(#LEFT, #RIGHT)
     local dollH = ROWS * (ICON + 6) - 6
@@ -500,12 +503,13 @@ function Doll:Build(pane)
         local row = CreateFrame("Frame", nil, pane)
         row:SetSize(sw, 16)
         row:SetPoint("TOPLEFT", 4, sy - (i - 1) * 17)
+        -- Off the column rather than at offsets that suited one width.
         row.label = Chrome:Text(row, 11, C.muted)
         row.label:SetPoint("LEFT")
         row.value = Chrome:Text(row, 11)
-        row.value:SetPoint("LEFT", 96, 0)
+        row.value:SetPoint("LEFT", math.floor(sw * 0.42), 0)
         row.delta = Chrome:Text(row, 11)
-        row.delta:SetPoint("LEFT", 152, 0)
+        row.delta:SetPoint("LEFT", math.floor(sw * 0.66), 0)
         self.statRows[i] = row
     end
 
