@@ -1,5 +1,9 @@
 # Wick's Gear
 
+## 0.9.4 — 2026-09-24
+
+- (edit this entry with the actual changes)
+
 ## 0.9.3 — 2026-09-24
 
 ### Changed
