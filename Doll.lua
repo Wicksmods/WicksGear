@@ -171,15 +171,23 @@ function Doll:TryOn(itemID)
         end
     end
 
-    ns.UI:Refresh()
-    if self:Ensure() then self:Refresh() end
+    self:Changed()
     return true
+end
+
+-- The preview changed, so both halves of the window are stale: the doll
+-- and the stats here, and the highlights in the list beside it. TryOn
+-- redrew both and the two clears redrew only the doll, so taking
+-- everything off left every row in the list still lit.
+function Doll:Changed()
+    if ns.UI and ns.UI.Refresh then ns.UI:Refresh() end
+    if self:Ensure() then self:Refresh() end
 end
 
 function Doll:Clear(slotId)
     if not self.trying[slotId] then return end
     self.trying[slotId] = nil
-    self:Refresh()
+    self:Changed()
 end
 
 -- Whether this item is one of the pieces currently on the doll.
@@ -193,7 +201,7 @@ end
 
 function Doll:ClearAll()
     wipe(self.trying)
-    self:Refresh()
+    self:Changed()
 end
 
 -- Dragging inside our own window, so the cursor is ours rather than the
@@ -320,17 +328,49 @@ function Doll:RefreshStats()
         for _, got in ipairs(S:EquippedSetBonuses()) do
             nowSets[got.set .. "/" .. got.pieces] = true
         end
-        local lines = {}
+
+        -- The set name once, its bonuses under it. Each line is the
+        -- count that bonus needs, not how much of the set you have on:
+        -- the latter is the same number for every bonus of a set, so
+        -- four of them all read 4/8.
+        local order, bySet = {}, {}
         for _, got in ipairs(S:EquippedSetBonuses(wearing)) do
-            -- "You would get this" and "you have this" are different
-            -- claims, and this column shows both at once.
-            local already = nowSets[got.set .. "/" .. got.pieces]
-            lines[#lines + 1] = ("%s (%d/%d): %s%s")
-                :format(got.set, got.worn, got.total, got.text,
-                    already and "" or "  (would gain)")
+            if not bySet[got.set] then
+                bySet[got.set] = {}
+                order[#order + 1] = got.set
+            end
+            local group = bySet[got.set]
+            group[#group + 1] = got
+            group.total, group.worn = got.total, got.worn
+        end
+
+        local lines = {}
+        for _, set in ipairs(order) do
+            local group = bySet[set]
+            table.sort(group, function(a, b) return a.pieces < b.pieces end)
+            lines[#lines + 1] = ("|cffD4C8A1%s|r  |cff8a8270%d/%d worn|r")
+                :format(set, group.worn, group.total)
+            for _, got in ipairs(group) do
+                -- Green for one the preview would earn you, the way the
+                -- stat deltas are green, rather than "(would gain)" on
+                -- the end of every line.
+                local have = nowSets[set .. "/" .. got.pieces]
+                lines[#lines + 1] = ("  |cff%s%d/%d|r %s")
+                    :format(have and "8a8270" or "4FC778", got.pieces, got.total, got.text)
+            end
         end
         self.setInfo:SetText(table.concat(lines, "\n"))
     end
+
+    -- The bottom of the column is three texts, any of which can wrap to
+    -- several lines: the summary, the derived block and the bonuses.
+    -- Fixed offsets meant the bonuses were drawn through the derived
+    -- lines as soon as there were three of those, which there are on a
+    -- rogue. Each one hangs off the real bottom of the one above it.
+    self.derived:ClearAllPoints()
+    self.derived:SetPoint("TOPLEFT", self.summary, "BOTTOMLEFT", 0, -8)
+    self.setInfo:ClearAllPoints()
+    self.setInfo:SetPoint("TOPLEFT", self.derived, "BOTTOMLEFT", 0, -8)
 
     local sd = self:ScoreDelta()
     if not any then
@@ -574,7 +614,8 @@ function Doll:Build(pane)
     -- Earned set bonuses, under the summary. Only what you have
     -- actually got: an unearned bonus is not information about your
     -- character, and the tooltip carries the full list.
-    self.setInfo = Chrome:Text(pane, 10, C.fel)
+    -- Anchored for real in RefreshStats, off whatever is above it.
+    self.setInfo = Chrome:Text(pane, 10, C.text)
     self.setInfo:SetPoint("TOPLEFT", 4, fy - 52)
     self.setInfo:SetWidth(sw)
     self.setInfo:SetJustifyH("LEFT")
