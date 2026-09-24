@@ -288,6 +288,16 @@ function Doll:RefreshStats()
         end
     end
 
+    -- What the gear you have on is actually giving you.
+    if self.setInfo then
+        local lines = {}
+        for _, got in ipairs(S:EquippedSetBonuses()) do
+            lines[#lines + 1] = ("%s (%d/%d): %s")
+                :format(got.set, got.worn, got.total, got.text)
+        end
+        self.setInfo:SetText(table.concat(lines, "\n"))
+    end
+
     local sd = self:ScoreDelta()
     if not any then
         self.summary:SetText("Right-click anything in Upgrades or Browse to try it on here.")
@@ -524,8 +534,19 @@ function Doll:Build(pane)
     self.derived:SetWidth(sw)
     self.derived:SetJustifyH("LEFT")
 
-    local reset = Chrome:Button(pane, "Take it all off", 110, 20)
-    reset:SetPoint("BOTTOMLEFT", 4, 4)
+    -- Earned set bonuses, under the summary. Only what you have
+    -- actually got: an unearned bonus is not information about your
+    -- character, and the tooltip carries the full list.
+    self.setInfo = Chrome:Text(pane, 10, C.fel)
+    self.setInfo:SetPoint("TOPLEFT", 4, fy - 52)
+    self.setInfo:SetWidth(sw)
+    self.setInfo:SetJustifyH("LEFT")
+
+    -- At the top, not the bottom: the column had twelve points spare
+    -- and the bonus lines need them, and a control belongs by the
+    -- heading rather than under a page of readings.
+    local reset = Chrome:Button(pane, "Take it all off", 104, 18)
+    reset:SetPoint("TOPRIGHT", pane, "TOPRIGHT", -2, 20)
     reset:SetScript("OnClick", function() Doll:ClearAll() end)
 
     self:Refresh()

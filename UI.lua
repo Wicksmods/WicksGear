@@ -457,38 +457,13 @@ function UI:FillBrowse()
                 for _, entry in ipairs(rows) do want[#want + 1] = entry.id end
                 ns.Score:WantFirst(want)
                 for _, entry in ipairs(rows) do itemRow(entry, group, true) end
-                -- What the set gives, with the earned ones lit.
-                if prog then
-                    for _, b in ipairs(prog.bonuses or {}) do
-                        i = i + 1
-                        local r = acquire(pane, i)
-                        r.itemID, r.link, r.note = nil, nil, nil
-                        r.icon:SetTexture(nil)
-                        r.dimmed = nil
-                        r.icon:SetDesaturated(false)
-                        r.icon:SetAlpha(1)
-                        local on = prog.worn >= b.pieces
-                        r.left:SetText(("   |cff%s%d pieces:|r %s")
-                            :format(on and "4FC778" or "6a6258", b.pieces, b.text))
-                        tint(r.left, on and C.text or C.muted)
-                        r.mid:SetText("")
-                        r.right:SetText(on and "active" or "")
-                        tint(r.right, C.fel)
-                        r:SetScript("OnClick", nil)
-                        r:Show()
-                    end
-                    if prog.approximate and #(prog.bonuses or {}) > 0 then
-                        i = i + 1
-                        local r = acquire(pane, i)
-                        r.itemID, r.link, r.note = nil, nil, nil
-                        r.icon:SetTexture(nil)
-                        r.left:SetText("   |cff6a6258Bonuses are Classic's. Forever publishes none yet.|r")
-                        r.mid:SetText("")
-                        r.right:SetText("")
-                        r:SetScript("OnClick", nil)
-                        r:Show()
-                    end
-                end
+                -- The bonuses themselves used to be rows here, in a
+                -- column sized for one line of item name, carrying three
+                -- lines of bonus text. They wrapped into the row below.
+                -- Earned ones are shown with the stats, where a thing
+                -- you are currently getting belongs; the rest are in the
+                -- tooltip. The header still says how much you are
+                -- wearing and what the next bonus needs.
             end
 
             head:SetScript("OnClick", function()
@@ -731,6 +706,9 @@ function UI:ItemArrived()
     self.redrawQueued = true
     C_Timer.After(0.3, function()
         UI.redrawQueued = nil
+        -- Item data has arrived, so a set the client could not describe
+        -- a moment ago may be describable now.
+        ns.Score:ForgetSetCache()
         if not (UI.panel and UI.panel:IsShown()) then return end
         if UI.active == "browse" then UI:FillBrowse() else UI:FillUpgrades() end
         if ns.Doll:Ensure() then ns.Doll:Refresh() end

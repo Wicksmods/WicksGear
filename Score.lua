@@ -385,6 +385,23 @@ function S:FillTooltip(tt, id, link)
         tt:AddLine(("Drops in %s"):format(e.dungeon or "a dungeon")
             .. (e.from and (", from " .. e.from) or ""), 0.31, 0.78, 0.47, true)
     end
+    -- The client's own tooltip lists a set and its bonuses; ours did
+    -- not, and these are exactly the items it will never draw.
+    if e.set then
+        local prog = self:SetProgress(e.set)
+        tt:AddLine(" ")
+        tt:AddLine(prog and ("%s (%d/%d)"):format(e.set, prog.worn, prog.total) or e.set,
+            0.83, 0.78, 0.63)
+        for _, b in ipairs((prog and prog.bonuses) or {}) do
+            local on = prog.worn >= b.pieces
+            tt:AddLine(("  %d pieces: %s"):format(b.pieces, b.text),
+                on and 0.31 or 0.5, on and 0.78 or 0.5, on and 0.47 or 0.5, true)
+        end
+        if prog and prog.approximate and #(prog.bonuses or {}) > 0 then
+            tt:AddLine("  Bonuses are Classic's; Forever publishes none yet.", 0.5, 0.5, 0.5, true)
+        end
+        tt:AddLine(" ")
+    end
     tt:AddLine("Described from Wick's own data. This character has never seen the item, so the game cannot describe it.", 0.5, 0.5, 0.5, true)
     self:AddComparison(tt, id)
     return false
@@ -532,8 +549,18 @@ function S:ClientSetBonuses(setName)
             end
         end
     end
+    -- A miss is remembered so the sets tab does not rescan every entry
+    -- for every group on every draw, but it is not remembered forever:
+    -- the client answers about an item only once it has the data, and
+    -- that arrives after the first draw. ForgetSetCache is called when
+    -- it does, or a set the client could not describe yet would fall
+    -- back to Classic's numbers for the rest of the session.
     clientBonus[setName] = false
     return nil
+end
+
+function S:ForgetSetCache()
+    clientBonus = {}
 end
 
 -- How much of a set is actually on the character, and what that has
@@ -573,6 +600,29 @@ function S:SetProgress(setName)
              -- Only a fallback needs the warning. What the client said
              -- about its own sets is not approximate.
              approximate = fromClient == nil and ns.SET_BONUS_APPROXIMATE == true }
+end
+
+-- Every set bonus the gear on your back has actually earned, as flat
+-- rows ready to print. Only the earned ones: what a set would give at
+-- four pieces when you have two is a tooltip's business, not a readout
+-- of what you have.
+function S:EquippedSetBonuses()
+    local seen, out = {}, {}
+    if not GetInventoryItemID then return out end
+    for slot = 1, 19 do
+        local ok, id = pcall(GetInventoryItemID, "player", slot)
+        local e = ok and id and ns.ENTRY[id]
+        local set = e and e.set
+        if set and not seen[set] then
+            seen[set] = true
+            local prog = self:SetProgress(set)
+            for _, b in ipairs((prog and prog.earned) or {}) do
+                out[#out + 1] = { set = set, worn = prog.worn, total = prog.total,
+                                  pieces = b.pieces, text = b.text }
+            end
+        end
+    end
+    return out
 end
 
 -- Whether this exact item is in one of the equipped slots.
