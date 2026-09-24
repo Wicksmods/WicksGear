@@ -179,6 +179,15 @@ function Doll:Clear(slotId)
     self:Refresh()
 end
 
+-- Whether this item is one of the pieces currently on the doll.
+function Doll:IsTrying(id)
+    if not id then return false end
+    for _, t in pairs(self.trying) do
+        if t.id == id then return true end
+    end
+    return false
+end
+
 function Doll:ClearAll()
     wipe(self.trying)
     self:Refresh()

@@ -114,6 +114,18 @@ local function acquire(pane, i)
     r = CreateFrame("Button", nil, pane.list)
     r:SetHeight(ROW_H)
 
+    -- Behind everything: the wash that says this one is on the doll.
+    r.sel = Chrome:Texture(r, "BACKGROUND", C.fel)
+    r.sel:SetPoint("TOPLEFT", 1, -1)
+    r.sel:SetPoint("BOTTOMRIGHT", -1, 1)
+    r.sel:SetAlpha(0.10)
+    r.sel:Hide()
+    r.selEdge = Chrome:Texture(r, "BORDER", C.fel)
+    r.selEdge:SetPoint("TOPLEFT", 0, -1)
+    r.selEdge:SetPoint("BOTTOMLEFT", 0, 1)
+    r.selEdge:SetWidth(2)
+    r.selEdge:Hide()
+
     r.icon = r:CreateTexture(nil, "ARTWORK")
     r.icon:SetSize(ICON_H, ICON_H)
     r.icon:SetPoint("TOPLEFT", 3, -4)
@@ -133,8 +145,17 @@ local function acquire(pane, i)
     r.right:SetPoint("TOPRIGHT", -6, -5)
     r.right:SetWidth(58)
     r.right:SetJustifyH("RIGHT")
-    -- Now that the score exists, stop the name before it.
-    r.left:SetPoint("RIGHT", r.right, "LEFT", -6, 0)
+
+    -- A header's second column, on the header's own line. Items leave
+    -- it empty, and an empty font string with no width takes no room,
+    -- so the name can anchor to it either way.
+    r.note2 = Chrome:Text(r, 10, C.muted)
+    r.note2:SetPoint("TOPRIGHT", r.right, "TOPLEFT", -8, 0)
+    r.note2:SetJustifyH("RIGHT")
+    r.note2:SetWordWrap(false)
+
+    -- Now that both exist, stop the name before them.
+    r.left:SetPoint("RIGHT", r.note2, "LEFT", -6, 0)
 
     -- Line two: what it gives. Line three: where it comes from.
     r.stats = Chrome:Text(r, 10, C.fel)
@@ -174,6 +195,34 @@ end
 local function clear(pane)
     for _, r in ipairs(pane.rows or {}) do r:Hide() end
     pane.cursor = 0
+end
+
+-- Rows are pooled and serve two jobs. A header is one line, so the two
+-- lines an item uses have to be emptied, not just left behind: a font
+-- string is not clipped by its frame and would go on drawing over
+-- whatever is placed underneath.
+-- Lit when the piece is on the doll. Both fillers call it, so a row
+-- that was previewed last draw does not stay lit when it is reused.
+local function setPreviewed(r, on)
+    r.previewed = on and true or false
+    r.sel:SetShown(r.previewed)
+    r.selEdge:SetShown(r.previewed)
+end
+
+local function asHeader(r)
+    setPreviewed(r, false)
+    r.stats:SetText("")
+    r.mid:SetText("")
+    r.icon:SetTexture(nil)
+    r.icon:SetDesaturated(false)
+    r.icon:SetAlpha(1)
+    r.dimmed = nil
+    r.itemID, r.link, r.note = nil, nil, nil
+end
+
+local function asItem(r)
+    r.note2:SetText("")
+    setPreviewed(r, ns.Doll:IsTrying(r.itemID))
 end
 
 -- Put a row at the bottom of what is drawn so far and move the cursor
@@ -253,6 +302,7 @@ function UI:FillUpgrades()
                 -- An empty slot is still a gain, so it is signed like
                 -- the rest rather than printed bare, and always lit:
                 -- anything beats nothing.
+                asItem(r)
                 tint(r.right, (have == 0 or whole > 0) and C.fel or C.muted)
                 place(pane, r, ROW_H)
             end
@@ -411,6 +461,7 @@ function UI:FillBrowse()
         setUsable(r, (info and S:Usable(info)) and true or false)
         -- Take the handler back: this row may have been a group header
         -- last time it was drawn, and would still be carrying its toggle.
+        asItem(r)
         r:SetScript("OnClick", UI.RowClick)
         place(pane, r, ROW_H)
     end
@@ -447,17 +498,13 @@ function UI:FillBrowse()
         if rows and #rows > 0 then
             i = i + 1
             local head = acquire(pane, i)
-            head.itemID, head.link, head.note = nil, nil, nil
-            head.icon:SetTexture(nil)
-            head.dimmed = nil
-            head.icon:SetDesaturated(false)
-            head.icon:SetAlpha(1)
+            asHeader(head)
             -- Undo every mark setUsable leaves, not most of them. A row
             -- that was a dimmed item last time it was drawn kept its grey
             -- on the middle column and the name, so one dungeon in the
             -- list looked disabled for no reason.
             tint(head.left, C.text)
-            tint(head.mid, C.muted)
+            tint(head.note2, C.muted)
             head.left:SetText(("|cff4FC778%s|r"):format(group))
 
             -- Only a dungeon has a level bracket. A range worked out from
@@ -465,9 +512,9 @@ function UI:FillBrowse()
             -- look like one.
             local d = source == "dungeons" and ns.DUNGEONS[group]
             if d then
-                head.mid:SetText(d.levelsDerived and (d.levels .. "?") or d.levels)
+                head.note2:SetText(d.levelsDerived and (d.levels .. "?") or d.levels)
             else
-                head.mid:SetText("")
+                head.note2:SetText("")
             end
             -- On the Sets tab the count that matters is how much of it
             -- you are wearing, not how many pieces exist.
@@ -476,9 +523,9 @@ function UI:FillBrowse()
                 head.right:SetText(("%d/%d"):format(prog.worn, prog.total))
                 tint(head.right, prog.worn > 0 and C.fel or C.muted)
                 if prog.next then
-                    head.mid:SetText(("next at %d"):format(prog.next.pieces))
+                    head.note2:SetText(("next at %d"):format(prog.next.pieces))
                 elseif #prog.earned > 0 then
-                    head.mid:SetText("all bonuses")
+                    head.note2:SetText("all bonuses")
                 end
             else
                 head.right:SetText(("%d"):format(#rows))
