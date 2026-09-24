@@ -12,7 +12,19 @@ ns.UI = UI
 
 local ROW_H = 20
 local TAB_H = 22
-local WIDTH, HEIGHT = 520, 420
+-- Two columns. The lists take the left two thirds and keep their tabs;
+-- the doll and the stats hold the right third and are always on, so
+-- trying something on never costs you your place in the list.
+--
+-- COMPARE_W is what the doll actually needs once it is stacked portrait:
+-- two 30px slot columns either side of a 124px model, plus margins. The
+-- window is three times that plus the gutter, which is where 2/3 and
+-- 1/3 come from rather than a number picked to look right.
+local COMPARE_W = 236
+local GUTTER = 10
+-- 520, not 500: the stacked doll runs to 426 points and the "Take it
+-- all off" button owns the bottom 24, which 500 does not quite clear.
+local WIDTH, HEIGHT = COMPARE_W * 3 + GUTTER * 2, 520
 
 local function tint(fs, c) fs:SetTextColor(c[1], c[2], c[3], c[4] or 1) end
 
@@ -42,7 +54,7 @@ end
 -- is drawn as an item again it has to be given this back. Rebinding on
 -- every draw is cheaper than remembering which rows were headers.
 --
---   click        our own viewer, on the Compare tab
+--   click        our own viewer, in the column beside the list
 --   ctrl-click   the game's dressing room
 --   shift-click  the item into the chat box
 function UI.RowClick(s, button)
@@ -81,11 +93,10 @@ function UI.RowClick(s, button)
         return
     end
 
-    -- Plain click, either button: on in our own viewer. Switching to the
-    -- tab as well, because trying something on where you cannot see it
-    -- looks the same as nothing happening.
+    -- Plain click, either button: on in our own viewer, which is sitting
+    -- next to the list rather than behind a tab, so the list stays put
+    -- and you can keep going down it.
     ns.Doll:TryOn(s.itemID)
-    UI:Select("compare")
 end
 
 local function acquire(pane, i)
@@ -511,7 +522,8 @@ local function makePane(parent, plain, withStrip)
     local pane = CreateFrame("Frame", nil, parent)
     local top = Chrome.HEADER_H + TAB_H + 26 + (withStrip and STRIP_H or 0)
     pane:SetPoint("TOPLEFT", 10, -top)
-    pane:SetPoint("BOTTOMRIGHT", -10, 10)
+    -- Stop short of the compare column rather than running under it.
+    pane:SetPoint("BOTTOMRIGHT", -(COMPARE_W + GUTTER * 2), 10)
     pane:Hide()
 
     pane.head = Chrome:Text(parent, 10, C.muted)
@@ -519,7 +531,7 @@ local function makePane(parent, plain, withStrip)
         - (withStrip and STRIP_H or 0))
     -- Browse keeps the Equippable toggle on this line, so the text has
     -- to stop before it rather than run underneath.
-    pane.head:SetWidth(WIDTH - 24 - (withStrip and 106 or 0))
+    pane.head:SetWidth(WIDTH - COMPARE_W - GUTTER * 3 - 24 - (withStrip and 106 or 0))
     pane.head:SetJustifyH("LEFT")
 
     if plain then
@@ -602,7 +614,7 @@ local function makePane(parent, plain, withStrip)
 
     pane.empty = Chrome:Text(pane, 11, C.muted)
     pane.empty:SetPoint("TOPLEFT", 2, -4)
-    pane.empty:SetWidth(WIDTH - 40)
+    pane.empty:SetWidth(WIDTH - COMPARE_W - GUTTER * 3 - 30)
     pane.empty:SetJustifyH("LEFT")
     pane.empty:Hide()
     return pane
@@ -624,7 +636,7 @@ function UI:Build()
 
     self.panes, self.tabs = {}, {}
     local x = 8
-    for _, def in ipairs({ { "upgrades", "Upgrades" }, { "browse", "Browse" }, { "compare", "Compare" } }) do
+    for _, def in ipairs({ { "upgrades", "Upgrades" }, { "browse", "Browse" } }) do
         local b = CreateFrame("Button", nil, strip)
         b:SetSize(80, TAB_H)
         b:SetPoint("LEFT", x, 0)
@@ -638,9 +650,30 @@ function UI:Build()
         b.under:Hide()
         b:SetScript("OnClick", function() UI:Select(def[1]) end)
         self.tabs[def[1]] = b
-        self.panes[def[1]] = makePane(p, def[1] == "compare", def[1] == "browse")
+        self.panes[def[1]] = makePane(p, false, def[1] == "browse")
         x = x + 84
     end
+
+    -- The compare column. Still panes.compare, so everything that asks
+    -- for it by name still finds it; it simply never hides now.
+    local cmp = CreateFrame("Frame", nil, p)
+    cmp:SetPoint("TOPRIGHT", -GUTTER, -Chrome.HEADER_H - TAB_H - 4)
+    cmp:SetPoint("BOTTOMRIGHT", -GUTTER, 10)
+    cmp:SetWidth(COMPARE_W)
+    self.panes.compare = cmp
+
+    -- A rule between the two, so the split reads as one window in two
+    -- parts rather than two windows that happen to touch.
+    local rule = Chrome:Texture(p, "ARTWORK", C.border)
+    rule:SetPoint("TOPRIGHT", cmp, "TOPLEFT", -GUTTER + 1, 6)
+    rule:SetPoint("BOTTOMRIGHT", cmp, "BOTTOMLEFT", -GUTTER + 1, 0)
+    rule:SetWidth(1)
+
+    cmp.head = Chrome:Text(cmp, 10, C.muted)
+    cmp.head:SetPoint("TOPLEFT", 4, 14)
+    cmp.head:SetText("Trying on")
+    -- It is not a tab any more, so nothing else will ever show it.
+    cmp:Show()
 
     p:SetScript("OnShow", function() UI:Refresh() end)
     self.panel = p
@@ -649,6 +682,10 @@ function UI:Build()
 end
 
 function UI:Select(which)
+    -- Compare is not a tab any more. Asking for it used to be how a row
+    -- click showed you the doll, and callers still do; the doll is
+    -- always up now, so there is nothing to switch to.
+    if which == "compare" then self:Refresh() return end
     self.active = which
     for id, b in pairs(self.tabs) do
         local on = id == which
@@ -666,10 +703,9 @@ function UI:Refresh()
     -- rest in the background. Waiting for all of it is what made this
     -- feel broken: the whole list sat empty for the slowest item.
     ns.Score:Want(ns.AllItemIDs())
-    if self.active == "browse" then self:FillBrowse()
-    elseif self.active == "compare" then
-        if ns.Doll:Ensure() then ns.Doll:Refresh() end
-    else self:FillUpgrades() end
+    if self.active == "browse" then self:FillBrowse() else self:FillUpgrades() end
+    -- The right column is always on, so it is always redrawn.
+    if ns.Doll:Ensure() then ns.Doll:Refresh() end
 end
 
 -- The server sends item data back a few at a time, and whatever had not
@@ -683,10 +719,8 @@ function UI:ItemArrived()
     C_Timer.After(0.3, function()
         UI.redrawQueued = nil
         if not (UI.panel and UI.panel:IsShown()) then return end
-        if UI.active == "browse" then UI:FillBrowse()
-        elseif UI.active == "compare" then
-            if ns.Doll:Ensure() then ns.Doll:Refresh() end
-        else UI:FillUpgrades() end
+        if UI.active == "browse" then UI:FillBrowse() else UI:FillUpgrades() end
+        if ns.Doll:Ensure() then ns.Doll:Refresh() end
     end)
 end
 

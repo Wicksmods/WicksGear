@@ -168,7 +168,7 @@ function Doll:TryOn(itemID)
         end
     end
 
-    ns.UI:Select("compare")
+    ns.UI:Refresh()
     if self:Ensure() then self:Refresh() end
     return true
 end
@@ -449,58 +449,75 @@ function Doll:Build(pane)
     self.pane = pane
     self.slots = {}
 
-    local function column(list, anchorPoint, xOff)
+    -- Portrait. The column is narrow, so the doll stacks rather than
+    -- spreading: slots either side of the model, weapons beneath them,
+    -- then the stats. Measured off the pane so it stays centred if the
+    -- column is ever resized.
+    local MODEL_W = 124
+    local GAP = 8
+    local block = ICON + GAP + MODEL_W + GAP + ICON
+    local W = tonumber(pane:GetWidth()) or 236
+    local x0 = math.max(4, math.floor((W - block) / 2))
+    local ROWS = math.max(#LEFT, #RIGHT)
+    local dollH = ROWS * (ICON + 6) - 6
+
+    local function column(list, xOff)
         local prev
         for _, slotId in ipairs(list) do
             local b = makeSlot(pane, slotId)
             if prev then b:SetPoint("TOP", prev, "BOTTOM", 0, -6)
-            else b:SetPoint(anchorPoint, pane, anchorPoint, xOff, -4) end
+            else b:SetPoint("TOPLEFT", pane, "TOPLEFT", xOff, -4) end
             self.slots[slotId] = b
             prev = b
         end
-        return prev
     end
-    column(LEFT, "TOPLEFT", 4)
-    column(RIGHT, "TOPLEFT", 4 + ICON + 128 + 8)
+    column(LEFT, x0)
+    column(RIGHT, x0 + ICON + GAP + MODEL_W + GAP)
 
+    local m = CreateFrame("DressUpModel", nil, pane)
+    m:SetPoint("TOPLEFT", x0 + ICON + GAP, -4)
+    m:SetSize(MODEL_W, dollH)
+    self.model = m
+
+    -- The weapons, centred under the doll.
+    local underW = #UNDER * ICON + (#UNDER - 1) * 6
+    local ux = math.max(4, math.floor((W - underW) / 2))
+    local underY = -(4 + dollH + 8)
     local prev
     for _, slotId in ipairs(UNDER) do
         local b = makeSlot(pane, slotId)
         if prev then b:SetPoint("LEFT", prev, "RIGHT", 6, 0)
-        else b:SetPoint("TOPLEFT", 4 + ICON + 20, -(6 * (ICON + 6)) - 2) end
+        else b:SetPoint("TOPLEFT", ux, underY) end
         self.slots[slotId] = b
         prev = b
     end
 
-    local m = CreateFrame("DressUpModel", nil, pane)
-    m:SetPoint("TOPLEFT", 4 + ICON + 8, -4)
-    m:SetSize(124, 6 * (ICON + 6) - 8)
-    self.model = m
-
-    -- Stats, to the right of the doll.
-    local sx = 4 + ICON * 2 + 128 + 20
+    -- Stats below the doll, across the full column.
+    local sy = underY - ICON - 12
+    local sw = W - 8
     self.statRows = {}
     for i = 1, #ns.Score.STAT_ORDER do
         local row = CreateFrame("Frame", nil, pane)
-        row:SetSize(170, 16)
-        row:SetPoint("TOPLEFT", sx, -4 - (i - 1) * 17)
+        row:SetSize(sw, 16)
+        row:SetPoint("TOPLEFT", 4, sy - (i - 1) * 17)
         row.label = Chrome:Text(row, 11, C.muted)
         row.label:SetPoint("LEFT")
         row.value = Chrome:Text(row, 11)
-        row.value:SetPoint("LEFT", 76, 0)
+        row.value:SetPoint("LEFT", 96, 0)
         row.delta = Chrome:Text(row, 11)
-        row.delta:SetPoint("LEFT", 124, 0)
+        row.delta:SetPoint("LEFT", 152, 0)
         self.statRows[i] = row
     end
 
+    local fy = sy - #ns.Score.STAT_ORDER * 17 - 8
     self.summary = Chrome:Text(pane, 12, C.muted)
-    self.summary:SetPoint("TOPLEFT", sx, -4 - 6 * 17 - 8)
-    self.summary:SetWidth(178)
+    self.summary:SetPoint("TOPLEFT", 4, fy)
+    self.summary:SetWidth(sw)
     self.summary:SetJustifyH("LEFT")
 
     self.derived = Chrome:Text(pane, 10, C.muted)
-    self.derived:SetPoint("TOPLEFT", sx, -4 - 6 * 17 - 34)
-    self.derived:SetWidth(178)
+    self.derived:SetPoint("TOPLEFT", 4, fy - 26)
+    self.derived:SetWidth(sw)
     self.derived:SetJustifyH("LEFT")
 
     local reset = Chrome:Button(pane, "Take it all off", 110, 20)
