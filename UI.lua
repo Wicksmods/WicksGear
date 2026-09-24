@@ -28,7 +28,7 @@ local TAB_H = 22
 -- 520 high: the stacked doll runs to 426 points and the "Take it all
 -- off" button owns the bottom 24, which 500 does not clear.
 local GUTTER = 10
-local WIDTH, HEIGHT = 860, 520
+local WIDTH, HEIGHT = 860, 580
 local COMPARE_W = math.floor(WIDTH * 0.4) - GUTTER * 2
 
 local function tint(fs, c) fs:SetTextColor(c[1], c[2], c[3], c[4] or 1) end

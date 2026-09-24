@@ -26,7 +26,10 @@ ns.Doll = Doll
 
 local UP   = { 0.35, 0.82, 0.45, 1 }
 local DOWN = { 0.85, 0.35, 0.35, 1 }
-local ICON = 30
+-- Bigger. The column is wide enough for it and the slots were reading
+-- as an afterthought beside a 200 point model, with the space going to
+-- the margins instead of to the things you are looking at.
+local ICON = 38
 
 -- Two columns down the sides and the weapons underneath, the way the
 -- character sheet reads.
@@ -499,7 +502,10 @@ function Doll:Build(pane)
     -- The slots are a fixed icon wide and the stat rows only have to be
     -- legible, so spare width goes to the model. Capped, because past
     -- about this the character is just large rather than clearer.
-    local MODEL_W = math.max(124, math.min(200, W - ICON * 2 - GAP * 2 - 24))
+    -- Whatever is left once the two slot columns and a small margin
+    -- have taken theirs, so the model grows with the column rather than
+    -- stopping at a number and leaving the rest as margin.
+    local MODEL_W = math.max(124, math.min(300, W - ICON * 2 - GAP * 2 - 12))
     local block = ICON + GAP + MODEL_W + GAP + ICON
     local x0 = math.max(4, math.floor((W - block) / 2))
     local ROWS = math.max(#LEFT, #RIGHT)
