@@ -2,7 +2,33 @@
 
 ## 0.9.3 — 2026-09-24
 
-- (edit this entry with the actual changes)
+### Changed
+
+- The window is two columns. The lists keep the left side and their
+  tabs; the paperdoll and the stats hold the right and are always on,
+  so trying something on no longer costs you your place in the list.
+- A row is three lines: the name in its quality colour, what the piece
+  gives, and where it comes from, with an icon big enough to find
+  things by. Rows band so a row reads as a block, groups wear a bar,
+  and anything on the doll is lit in the list.
+- Click a row to put a piece on, click it again to take it off.
+- Set bonuses read beside the stats rather than as rows in the list,
+  where they wrapped into each other. Only the ones you have earned,
+  and they count what you are trying on: two pieces of a set in the
+  preview shows the two-piece bonus, in green because you would be
+  gaining it. Each line carries the count it needs, 2/5 through 5/5,
+  rather than repeating how much of the set you are wearing.
+- Our own tooltip names the set and lists its bonuses for an item the
+  client has never seen, which is the only tooltip those items get.
+
+### Fixed
+
+- The window opened at whatever size it had been before the layout
+  changed, which squeezed the list until the source text ran under the
+  score and ran the paperdoll through the button below it.
+- Taking a piece off did not clear its highlight in the list.
+- A row reused as a group header kept the previous item's stats and
+  source lines, which drew over the header beneath it.
 
 ## 0.9.2
 
