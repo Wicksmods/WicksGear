@@ -190,6 +190,25 @@ function Doll:Clear(slotId)
     self:Changed()
 end
 
+-- Take a previewed piece off, wherever it went on. A two-hander
+-- emptied the off hand when it went on, so taking it off gives the off
+-- hand back rather than leaving a slot pretending to be bare.
+function Doll:Untry(id)
+    if not id then return false end
+    local found
+    for slotId, t in pairs(self.trying) do
+        if t.id == id then found = slotId break end
+    end
+    if not found then return false end
+    self.trying[found] = nil
+    if found == MAIN_HAND then
+        local off = self.trying[OFF_HAND]
+        if off and off.empty then self.trying[OFF_HAND] = nil end
+    end
+    self:Changed()
+    return true
+end
+
 -- Whether this item is one of the pieces currently on the doll.
 function Doll:IsTrying(id)
     if not id then return false end
@@ -369,8 +388,17 @@ function Doll:RefreshStats()
     -- rogue. Each one hangs off the real bottom of the one above it.
     self.derived:ClearAllPoints()
     self.derived:SetPoint("TOPLEFT", self.summary, "BOTTOMLEFT", 0, -8)
-    self.setInfo:ClearAllPoints()
-    self.setInfo:SetPoint("TOPLEFT", self.derived, "BOTTOMLEFT", 0, -8)
+    if self.setScroll then
+        -- Starts under the derived lines and runs to the bottom of the
+        -- column, so it grows and shrinks with what is above it.
+        self.setScroll:ClearAllPoints()
+        self.setScroll:SetPoint("TOPLEFT", self.derived, "BOTTOMLEFT", 0, -8)
+        self.setScroll:SetPoint("RIGHT", self.pane, "RIGHT", -4, 0)
+        self.setScroll:SetPoint("BOTTOM", self.pane, "BOTTOM", 0, 4)
+        local h = tonumber(self.setInfo.GetStringHeight
+            and self.setInfo:GetStringHeight()) or 0
+        self.setScroll:GetScrollChild():SetHeight(math.max(1, h))
+    end
 
     local sd = self:ScoreDelta()
     if not any then
@@ -509,6 +537,10 @@ function Doll:RefreshModel()
     if not m then return end
     local ok = pcall(function()
         m:SetUnit("player")
+        -- Four per cent closer, which is the character four per cent
+        -- bigger without taking width from the slots either side of it.
+        -- The frame is already as wide as the column allows.
+        if m.SetCamDistanceScale then m:SetCamDistanceScale(1 / 1.04) end
         m:Undress()
         m:Dress()
         for slotId, trying in pairs(self.trying) do
@@ -614,9 +646,32 @@ function Doll:Build(pane)
     -- Earned set bonuses, under the summary. Only what you have
     -- actually got: an unearned bonus is not information about your
     -- character, and the tooltip carries the full list.
-    -- Anchored for real in RefreshStats, off whatever is above it.
-    self.setInfo = Chrome:Text(pane, 10, C.text)
-    self.setInfo:SetPoint("TOPLEFT", 4, fy - 52)
+    -- The bonuses are as long as the gear makes them, so rather than
+    -- sizing the window for a worst case almost nobody is in, they take
+    -- whatever is left under the derived lines and scroll inside it.
+    -- The top is anchored in RefreshStats, off the text above.
+    local setScroll = CreateFrame("ScrollFrame", nil, pane)
+    setScroll:SetPoint("BOTTOMLEFT", pane, "BOTTOMLEFT", 4, 4)
+    setScroll:SetPoint("RIGHT", pane, "RIGHT", -4, 0)
+    setScroll:EnableMouseWheel(true)
+    setScroll:SetScript("OnMouseWheel", function(f, delta)
+        local inner = f:GetScrollChild()
+        local range = math.max(0, (tonumber(inner and inner:GetHeight()) or 0)
+            - (tonumber(f:GetHeight()) or 0))
+        if range <= 0 then return end
+        f:SetVerticalScroll(math.min(range,
+            math.max(0, (tonumber(f:GetVerticalScroll()) or 0) - delta * 20)))
+    end)
+    local setInner = CreateFrame("Frame", nil, setScroll)
+    setInner:SetSize(sw, 1)
+    setScroll:SetScrollChild(setInner)
+    setScroll:SetScript("OnSizeChanged", function(f)
+        setInner:SetWidth(f:GetWidth() or sw)
+    end)
+    self.setScroll = setScroll
+
+    self.setInfo = Chrome:Text(setInner, 10, C.text)
+    self.setInfo:SetPoint("TOPLEFT", 0, 0)
     self.setInfo:SetWidth(sw)
     self.setInfo:SetJustifyH("LEFT")
 

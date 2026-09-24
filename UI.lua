@@ -28,7 +28,7 @@ local TAB_H = 22
 -- 520 high: the stacked doll runs to 426 points and the "Take it all
 -- off" button owns the bottom 24, which 500 does not clear.
 local GUTTER = 10
-local WIDTH, HEIGHT = 860, 580
+local WIDTH, HEIGHT = 860, 660
 local COMPARE_W = math.floor(WIDTH * 0.4) - GUTTER * 2
 
 local function tint(fs, c) fs:SetTextColor(c[1], c[2], c[3], c[4] or 1) end
@@ -103,8 +103,13 @@ function UI.RowClick(s, button)
 
     -- Plain click, either button: on in our own viewer, which is sitting
     -- next to the list rather than behind a tab, so the list stays put
-    -- and you can keep going down it.
-    ns.Doll:TryOn(s.itemID)
+    -- and you can keep going down it. The row lights up to say it is on
+    -- the doll, so clicking a lit one is how you take it off again.
+    if ns.Doll:IsTrying(s.itemID) then
+        ns.Doll:Untry(s.itemID)
+    else
+        ns.Doll:TryOn(s.itemID)
+    end
 end
 
 local function acquire(pane, i)
