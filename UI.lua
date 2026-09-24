@@ -683,7 +683,10 @@ local function makePane(parent, plain, withStrip)
     -- following the pane keeps them in the list's half whatever the
     -- split is set to. 40 lifts them out of the pane and into the strip
     -- above it: the pane starts 26 + STRIP_H down and the strip sits 8.
-    search:SetPoint("TOPRIGHT", pane, "TOPRIGHT", 0, 18 + STRIP_H)
+    -- Off the divider. The pane's right edge is where the compare
+    -- column starts, and a box sitting hard against it reads as part of
+    -- the rule rather than as part of the list.
+    search:SetPoint("TOPRIGHT", pane, "TOPRIGHT", -10, 18 + STRIP_H)
     search:SetAutoFocus(false)
     search:SetFontObject("GameFontHighlightSmall")
     search:SetTextInsets(4, 4, 0, 0)
@@ -723,7 +726,7 @@ local function makePane(parent, plain, withStrip)
     -- so anchored right the box lands in the middle of the panel and the
     -- help text runs into it. Sized to what it actually draws.
     pane.equippable:SetWidth(100)
-    pane.equippable:SetPoint("TOPRIGHT", pane, "TOPRIGHT", 0, STRIP_H)
+    pane.equippable:SetPoint("TOPRIGHT", pane, "TOPRIGHT", -10, STRIP_H)
     pane.equippable:Hide()
     end
 

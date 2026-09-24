@@ -302,6 +302,45 @@ local function current(key)
     return effective or 0
 end
 
+-- The bonus block as rows, which is what gets drawn and what the
+-- checks read: a set line, then one line per bonus of that set.
+function Doll:BonusRows()
+    local S = ns.Score
+    local wearing = self:Wearing()
+    local nowSets = {}
+    for _, got in ipairs(S:EquippedSetBonuses()) do
+        nowSets[got.set .. "/" .. got.pieces] = true
+    end
+
+    local order, bySet = {}, {}
+    for _, got in ipairs(S:EquippedSetBonuses(wearing)) do
+        if not bySet[got.set] then
+            bySet[got.set] = {}
+            order[#order + 1] = got.set
+        end
+        local group = bySet[got.set]
+        group[#group + 1] = got
+        group.total, group.worn = got.total, got.worn
+    end
+
+    local rows = {}
+    for _, set in ipairs(order) do
+        local group = bySet[set]
+        table.sort(group, function(a, b) return a.pieces < b.pieces end)
+        rows[#rows + 1] = { kind = "set", set = set,
+                            worn = group.worn, total = group.total }
+        for _, got in ipairs(group) do
+            -- Green for one the preview would earn you, the way the
+            -- stat deltas are green.
+            rows[#rows + 1] = { kind = "bonus", set = set,
+                                pieces = got.pieces, total = got.total,
+                                text = got.text,
+                                have = nowSets[set .. "/" .. got.pieces] == true }
+        end
+    end
+    return rows
+end
+
 -- What you would have on if you kept the preview: whatever is being
 -- tried on, and the equipped gear everywhere else. An emptied slot, the
 -- off hand a two-hander takes with it, is empty here too.
@@ -311,6 +350,57 @@ function Doll:Wearing()
         out[slotId] = (not trying.empty) and trying.id or nil
     end
     return out
+end
+
+-- Lay the bonus rows out. The count sits in a narrow lane and the
+-- sentence wraps inside the rest, so a second line lands under the
+-- first line of the sentence rather than under the count.
+local NUM_W = 34
+
+function Doll:DrawBonuses()
+    local inner = self.setInner
+    if not inner then return end
+    local rows = self:BonusRows()
+    local width = tonumber(inner:GetWidth()) or 300
+    local y = 0
+    for i, row in ipairs(rows) do
+        local r = self.setRows[i]
+        if not r then
+            r = CreateFrame("Frame", nil, inner)
+            r.num = Chrome:Text(r, 10, C.muted)
+            r.num:SetPoint("TOPLEFT", 2, 0)
+            r.num:SetWidth(NUM_W)
+            r.num:SetJustifyH("RIGHT")
+            r.text = Chrome:Text(r, 10, C.text)
+            r.text:SetPoint("TOPLEFT", NUM_W + 8, 0)
+            r.text:SetJustifyH("LEFT")
+            self.setRows[i] = r
+        end
+        r:SetWidth(width)
+        r.text:SetWidth(math.max(40, width - NUM_W - 10))
+
+        if row.kind == "set" then
+            r.num:SetText("")
+            r.text:SetText(("%s  |cff8a8270%d/%d worn|r")
+                :format(row.set, row.worn, row.total))
+            tint(r.text, C.text)
+        else
+            r.num:SetText(("%d/%d"):format(row.pieces, row.total))
+            tint(r.num, row.have and C.muted or C.fel)
+            r.text:SetText(row.text)
+            tint(r.text, row.have and C.muted or C.fel)
+        end
+
+        local h = math.max(12, math.ceil(tonumber(r.text.GetStringHeight
+            and r.text:GetStringHeight()) or 12))
+        r:SetHeight(h)
+        r:ClearAllPoints()
+        r:SetPoint("TOPLEFT", 0, -y)
+        r:Show()
+        y = y + h + 2
+    end
+    for i = #rows + 1, #self.setRows do self.setRows[i]:Hide() end
+    inner:SetHeight(math.max(1, y))
 end
 
 function Doll:RefreshStats()
@@ -339,49 +429,9 @@ function Doll:RefreshStats()
     end
 
     -- What the gear you have on is actually giving you.
-    if self.setInfo then
-        -- Counting the preview, not just the gear on your back: two
-        -- pieces of a set tried on should show the two-piece bonus.
-        local wearing = self:Wearing()
-        local nowSets = {}
-        for _, got in ipairs(S:EquippedSetBonuses()) do
-            nowSets[got.set .. "/" .. got.pieces] = true
-        end
+    self:DrawBonuses()
 
-        -- The set name once, its bonuses under it. Each line is the
-        -- count that bonus needs, not how much of the set you have on:
-        -- the latter is the same number for every bonus of a set, so
-        -- four of them all read 4/8.
-        local order, bySet = {}, {}
-        for _, got in ipairs(S:EquippedSetBonuses(wearing)) do
-            if not bySet[got.set] then
-                bySet[got.set] = {}
-                order[#order + 1] = got.set
-            end
-            local group = bySet[got.set]
-            group[#group + 1] = got
-            group.total, group.worn = got.total, got.worn
-        end
-
-        local lines = {}
-        for _, set in ipairs(order) do
-            local group = bySet[set]
-            table.sort(group, function(a, b) return a.pieces < b.pieces end)
-            lines[#lines + 1] = ("|cffD4C8A1%s|r  |cff8a8270%d/%d worn|r")
-                :format(set, group.worn, group.total)
-            for _, got in ipairs(group) do
-                -- Green for one the preview would earn you, the way the
-                -- stat deltas are green, rather than "(would gain)" on
-                -- the end of every line.
-                local have = nowSets[set .. "/" .. got.pieces]
-                lines[#lines + 1] = ("  |cff%s%d/%d|r %s")
-                    :format(have and "8a8270" or "4FC778", got.pieces, got.total, got.text)
-            end
-        end
-        self.setInfo:SetText(table.concat(lines, "\n"))
-    end
-
-    -- The bottom of the column is three texts, any of which can wrap to
+-- The bottom of the column is three texts, any of which can wrap to
     -- several lines: the summary, the derived block and the bonuses.
     -- Fixed offsets meant the bonuses were drawn through the derived
     -- lines as soon as there were three of those, which there are on a
@@ -395,9 +445,7 @@ function Doll:RefreshStats()
         self.setScroll:SetPoint("TOPLEFT", self.derived, "BOTTOMLEFT", 0, -8)
         self.setScroll:SetPoint("RIGHT", self.pane, "RIGHT", -4, 0)
         self.setScroll:SetPoint("BOTTOM", self.pane, "BOTTOM", 0, 4)
-        local h = tonumber(self.setInfo.GetStringHeight
-            and self.setInfo:GetStringHeight()) or 0
-        self.setScroll:GetScrollChild():SetHeight(math.max(1, h))
+        -- DrawBonuses sized the child already.
     end
 
     local sd = self:ScoreDelta()
@@ -670,10 +718,11 @@ function Doll:Build(pane)
     end)
     self.setScroll = setScroll
 
-    self.setInfo = Chrome:Text(setInner, 10, C.text)
-    self.setInfo:SetPoint("TOPLEFT", 0, 0)
-    self.setInfo:SetWidth(sw)
-    self.setInfo:SetJustifyH("LEFT")
+    -- A row per line: the count in a lane of its own, the sentence in
+    -- the rest. One font string for both meant a wrapped sentence went
+    -- back to the left margin and ran under the count.
+    self.setInner = setInner
+    self.setRows = {}
 
     -- At the top, not the bottom: the column had twelve points spare
     -- and the bonus lines need them, and a control belongs by the
