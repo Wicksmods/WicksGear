@@ -304,7 +304,17 @@ function UI:FillUpgrades()
         for _, entry in ipairs(d.items) do
             if entry.req <= cap then
                 local info = S:Info(entry.id)
-                if info and info.slot and S:Usable(info) then
+                -- Something you are already wearing is not an upgrade on
+                -- itself. It can still be the best thing in the data for
+                -- its slot, which is exactly how it came to be suggested
+                -- back to you. Skipped here rather than filtered later,
+                -- so the next best piece takes the slot instead of the
+                -- row simply disappearing.
+                --
+                -- Asked of the whole character, not of info.slot: rings
+                -- and trinkets have two slots each, and a ring worn in
+                -- the second is still a ring you own.
+                if info and info.slot and S:Usable(info) and not S:IsEquipped(entry.id) then
                     local link = S:LinkFor(entry.id)
                     local pts, why = S:Value(link, entry.id)
                     if pts > 0 then
