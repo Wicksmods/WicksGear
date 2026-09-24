@@ -2,7 +2,16 @@
 
 ## 0.9.4 — 2026-09-24
 
-- (edit this entry with the actual changes)
+### Fixed
+
+- Upgrades suggested pieces you were already wearing. It picked the
+  best-scoring item in the data for each slot and never asked whether
+  that item was on your back, so your own gear could win its own slot
+  and be recommended back to you, scored against itself.
+- The slot now falls to the next best piece rather than the row simply
+  disappearing, and the question is asked of the whole character: rings
+  and trinkets have two slots each, and a ring worn in the second is
+  still a ring you own.
 
 ## 0.9.3 — 2026-09-24
 
