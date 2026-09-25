@@ -1,5 +1,31 @@
 # Wick's Gear
 
+## 0.9.5 — 2026-09-24
+
+### Added
+
+- The right column is a wardrobe. Page through the sets your class can
+  wear with the arrows above the model and the character puts one on:
+  its pieces light up in the list beside it, and the readings
+  underneath say what wearing the set would do to you.
+- Drag the model to turn the character, right-click it to put it back
+  to front-on. The shoulders are most of what a front view hides.
+
+### Changed
+
+- The character is bigger. The slots moved out from either side of the
+  model into one strip beneath it, so the picture gets the whole width
+  of the column rather than a third of it. They keep every job they
+  had: tooltips, a drop target, right-click to put a piece back.
+- The readings under the model are two lanes now. What the gear gives
+  you on the left, what the character sheet makes of it on the right,
+  each with the total and what the preview would change it by.
+- Those totals are the client's own readings rather than our
+  conversions run at your current stats. The old way reported health
+  from stamina under the word Health, which is not your health and
+  disagreed with your character sheet. Anything the client will not
+  hand over reads as a dash rather than a guess.
+
 ## 0.9.4 — 2026-09-24
 
 ### Fixed
