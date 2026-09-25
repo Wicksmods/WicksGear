@@ -708,14 +708,19 @@ function Doll:Build(pane)
     -- the front view hides.
     m:EnableMouse(true)
     m:SetScript("OnMouseDown", function(_, button)
-        if button == "LeftButton" then Doll.turnFrom = GetCursorPosition() end
+        if button == "LeftButton" then
+            Doll.turnFrom = GetCursorPosition()
+        elseif button == "RightButton" then
+            -- Back to front-on, for a model spun somewhere useless.
+            -- Right-click rather than double-click: a model widget does
+            -- not inherit the click handlers a frame has, and asking it
+            -- for OnDoubleClick raises.
+            Doll:Face(0)
+        end
     end)
     m:SetScript("OnMouseUp", function(_, button)
         if button == "LeftButton" then Doll.turnFrom = nil end
     end)
-    -- Back to front-on, for a model that has been spun somewhere
-    -- useless and is a nuisance to straighten by hand.
-    m:SetScript("OnDoubleClick", function() Doll:Face(0) end)
     m:SetScript("OnUpdate", function()
         if not Doll.turnFrom then return end
         local x = GetCursorPosition()
