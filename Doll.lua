@@ -630,6 +630,16 @@ end
 -- The character
 -- ============================================================
 
+-- Which way the character is turned. Kept here rather than on the
+-- model because the model is told again after every redress.
+Doll.facing = 0
+
+function Doll:Face(facing)
+    self.facing = facing
+    local m = self.model
+    if m and m.SetFacing then pcall(m.SetFacing, m, facing) end
+end
+
 function Doll:RefreshModel()
     local m = self.model
     if not m then return end
@@ -648,6 +658,10 @@ function Doll:RefreshModel()
                 m:UndressSlot(slotId)
             end
         end
+        -- SetUnit puts the character back to front-on, and this runs
+        -- every time you try a piece on, so a model you had turned
+        -- would snap round on every click of the list.
+        if m.SetFacing then m:SetFacing(self.facing or 0) end
     end)
     if not ok then
         -- Some builds refuse a model on a frame this small. The paperdoll
@@ -688,6 +702,26 @@ function Doll:Build(pane)
     m:SetPoint("TOPLEFT", 4, -(PICK_H + 4))
     m:SetSize(sw, MODEL_H)
     self.model = m
+
+    -- Drag to turn the character. A set is a thing you look at from
+    -- behind as well as the front, and the shoulders are most of what
+    -- the front view hides.
+    m:EnableMouse(true)
+    m:SetScript("OnMouseDown", function(_, button)
+        if button == "LeftButton" then Doll.turnFrom = GetCursorPosition() end
+    end)
+    m:SetScript("OnMouseUp", function(_, button)
+        if button == "LeftButton" then Doll.turnFrom = nil end
+    end)
+    -- Back to front-on, for a model that has been spun somewhere
+    -- useless and is a nuisance to straighten by hand.
+    m:SetScript("OnDoubleClick", function() Doll:Face(0) end)
+    m:SetScript("OnUpdate", function()
+        if not Doll.turnFrom then return end
+        local x = GetCursorPosition()
+        Doll:Face(Doll.facing + (x - Doll.turnFrom) * 0.01)
+        Doll.turnFrom = x
+    end)
 
     -- One strip rather than two columns: what you have on, what you are
     -- trying, and somewhere to drop a piece from the list.
