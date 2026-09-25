@@ -603,6 +603,64 @@ end
 
 function S:ForgetSetCache()
     clientBonus = {}
+    -- Which sets this class can wear is an item-data question too.
+    self.wearableSets = nil
+end
+
+-- ============================================================
+-- Sets
+-- ============================================================
+-- Every set the data knows, and the pieces in it. Walked once: the
+-- tables do not change after load, and doing it per keystroke in Browse
+-- was work for nothing.
+local setsCache, setOrderCache
+function S:SetGroups()
+    if setsCache then return setOrderCache, setsCache end
+    local groups = {}
+    local function sweep(tbl)
+        for _, rows in pairs(tbl or {}) do
+            for _, e in ipairs(rows) do
+                if e.set then
+                    groups[e.set] = groups[e.set] or {}
+                    table.insert(groups[e.set], e)
+                end
+            end
+        end
+    end
+    -- The dungeon table nests its rows one level deeper than the others.
+    local flat = {}
+    for name, d in pairs(ns.DUNGEONS or {}) do flat[name] = d.items end
+    sweep(flat)
+    sweep(ns.CRAFTED)
+    sweep(ns.QUESTS)
+    local order = {}
+    for name in pairs(groups) do order[#order + 1] = name end
+    table.sort(order)
+    setsCache, setOrderCache = groups, order
+    return order, groups
+end
+
+-- The sets this character could actually wear, which is the list worth
+-- stepping through in the wardrobe: a plate set is not a thing a rogue
+-- wants to page past.
+function S:WearableSets()
+    if self.wearableSets then return self.wearableSets end
+    local order, groups = self:SetGroups()
+    local out = {}
+    for _, name in ipairs(order) do
+        for _, e in ipairs(groups[name]) do
+            local info = self:Info(e.id)
+            if info and info.slot and self:Usable(info) then
+                out[#out + 1] = name
+                break
+            end
+        end
+    end
+    -- Nothing usable yet means the client has not described anything
+    -- yet, not that the character can wear nothing. Do not cache that.
+    if #out == 0 then return order end
+    self.wearableSets = out
+    return out
 end
 
 -- How much of a set is actually on the character, and what that has

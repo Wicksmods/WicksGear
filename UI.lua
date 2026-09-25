@@ -402,44 +402,14 @@ UI.SOURCES = { "dungeons", "crafted", "quests", "sets" }
 UI.SOURCE_LABEL = { dungeons = "Dungeons", crafted = "Crafted",
                     quests = "Quests", sets = "Sets" }
 
--- Built once and kept, because walking every table to find set members
--- on each keystroke would be work for nothing: the tables never change
--- after load.
-local setsCache
-local function bySet()
-    if setsCache then return setsCache end
-    local groups = {}
-    local function sweep(tbl)
-        for _, rows in pairs(tbl or {}) do
-            for _, e in ipairs(rows) do
-                if e.set then
-                    groups[e.set] = groups[e.set] or {}
-                    table.insert(groups[e.set], e)
-                end
-            end
-        end
-    end
-    -- The dungeon table nests its rows one level deeper than the others.
-    local flat = {}
-    for name, d in pairs(ns.DUNGEONS or {}) do flat[name] = d.items end
-    sweep(flat)
-    sweep(ns.CRAFTED)
-    sweep(ns.QUESTS)
-    setsCache = groups
-    return groups
-end
-
 function UI:Groups(source)
     if source == "crafted" then
         return ns.CRAFTED_ORDER or {}, ns.CRAFTED or {}
     elseif source == "quests" then
         return ns.QUESTS_ORDER or {}, ns.QUESTS or {}
     elseif source == "sets" then
-        local groups = bySet()
-        local order = {}
-        for name in pairs(groups) do order[#order + 1] = name end
-        table.sort(order)
-        return order, groups
+        -- The same list the wardrobe pages through.
+        return ns.Score:SetGroups()
     end
     local order, groups = {}, {}
     for _, name in ipairs(ns.DUNGEON_ORDER or {}) do
@@ -801,7 +771,7 @@ function UI:Build()
 
     cmp.head = Chrome:Text(cmp, 10, C.muted)
     cmp.head:SetPoint("TOPLEFT", 4, 14)
-    cmp.head:SetText("Trying on")
+    cmp.head:SetText("Wardrobe")
     -- It is not a tab any more, so nothing else will ever show it.
     cmp:Show()
 

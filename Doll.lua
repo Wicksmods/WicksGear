@@ -26,16 +26,15 @@ ns.Doll = Doll
 
 local UP   = { 0.35, 0.82, 0.45, 1 }
 local DOWN = { 0.85, 0.35, 0.35, 1 }
--- Bigger. The column is wide enough for it and the slots were reading
--- as an afterthought beside a 200 point model, with the space going to
--- the margins instead of to the things you are looking at.
-local ICON = 38
+-- The column is the wardrobe, so the picture of the character is the
+-- thing worth the width. The slots are indicators under it: small
+-- enough to leave the model alone, big enough to drop a piece onto.
+local SLOT = 20
+local PICK_H = 22
+local MODEL_H = 280
+local STAT_H = 16
+local DERIVED_ROWS = 8
 
--- Two columns down the sides and the weapons underneath, the way the
--- character sheet reads.
-local LEFT  = { 1, 2, 3, 15, 5, 9 }        -- head, neck, shoulder, back, chest, wrist
-local RIGHT = { 10, 6, 7, 8, 11, 13 }      -- hands, waist, legs, feet, finger, trinket
-local UNDER = { 16, 17, 18 }               -- weapon, off hand, ranged
 
 Doll.trying = {}   -- slot -> { id, link } or { empty = true }
 
@@ -49,9 +48,9 @@ local function tint(fs, c) fs:SetTextColor(c[1], c[2], c[3], c[4] or 1) end
 -- Slots
 -- ============================================================
 
-local function makeSlot(parent, slotId)
+local function makeSlot(parent, slotId, size)
     local b = CreateFrame("Button", nil, parent)
-    b:SetSize(ICON, ICON)
+    b:SetSize(size or SLOT, size or SLOT)
     b.slotId = slotId
 
     b.bg = Chrome:Texture(b, "BACKGROUND", C.shadow)
@@ -141,7 +140,7 @@ end
 -- Trying things on
 -- ============================================================
 
-function Doll:TryOn(itemID)
+function Doll:TryOn(itemID, quiet)
     local S = ns.Score
     local info = S:Info(itemID)
     if not info or not info.slot then
@@ -153,6 +152,9 @@ function Doll:TryOn(itemID)
         return false
     end
     self.trying[info.slot] = { id = itemID, link = S:LinkFor(itemID), icon = info.icon }
+    -- Picked by hand, so the set name over the model is no longer what
+    -- the character is wearing. WearSet puts its own back afterwards.
+    self.setOn = nil
 
     -- A two-hander takes the off hand with it. Without this the compare
     -- counted a two-hander and a shield at once, which is not something
@@ -171,7 +173,9 @@ function Doll:TryOn(itemID)
         end
     end
 
-    self:Changed()
+    -- The caller may be putting a whole set on and will say when it is
+    -- done, rather than redrawing the window once per piece.
+    if not quiet then self:Changed() end
     return true
 end
 
@@ -220,6 +224,7 @@ end
 
 function Doll:ClearAll()
     wipe(self.trying)
+    self.setOn = nil
     self:Changed()
 end
 
@@ -413,7 +418,8 @@ function Doll:RefreshStats()
         local raw = current(key)
         local now = plain(raw)
         local d = deltas[key] or 0
-        row.label:SetText(S.STAT_LABEL[key])
+        -- Short forms: a lane is half a column wide now.
+        row.label:SetText(S.STAT_SHORT[key] or S.STAT_LABEL[key])
         if d == 0 then
             row.value:SetText(show(raw))
             tint(row.value, C.text)
@@ -422,42 +428,27 @@ function Doll:RefreshStats()
             -- With a plain number we can show what it would become. With
             -- a secret we can only show the change, which is ours anyway.
             row.value:SetText(now and tostring(now + d) or show(raw))
-            tint(row.value, d > 0 and UP or DOWN)
+            tint(row.value, C.text)
             row.delta:SetText(("%+d"):format(d))
             tint(row.delta, d > 0 and UP or DOWN)
         end
     end
 
+    self:DrawDerived()
+
     -- What the gear you have on is actually giving you.
     self:DrawBonuses()
 
--- The bottom of the column is three texts, any of which can wrap to
-    -- several lines: the summary, the derived block and the bonuses.
-    -- Fixed offsets meant the bonuses were drawn through the derived
-    -- lines as soon as there were three of those, which there are on a
-    -- rogue. Each one hangs off the real bottom of the one above it.
-    self.derived:ClearAllPoints()
-    self.derived:SetPoint("TOPLEFT", self.summary, "BOTTOMLEFT", 0, -8)
-    if self.setScroll then
-        -- Starts under the derived lines and runs to the bottom of the
-        -- column, so it grows and shrinks with what is above it.
-        self.setScroll:ClearAllPoints()
-        self.setScroll:SetPoint("TOPLEFT", self.derived, "BOTTOMLEFT", 0, -8)
-        self.setScroll:SetPoint("RIGHT", self.pane, "RIGHT", -4, 0)
-        self.setScroll:SetPoint("BOTTOM", self.pane, "BOTTOM", 0, 4)
-        -- DrawBonuses sized the child already.
-    end
-
     local sd = self:ScoreDelta()
     if not any then
-        self.summary:SetText("Right-click anything in Upgrades or Browse to try it on here.")
+        self.summary:SetText("Page through a set above, or right-click anything in the list.")
         tint(self.summary, C.muted)
     else
         self.summary:SetText(("%+.0f points overall"):format(sd))
         tint(self.summary, sd > 0 and UP or (sd < 0 and DOWN or C.muted))
     end
 
-    self:RefreshDerived(deltas, any)
+    self:RefreshPicker()
 end
 
 -- ============================================================
@@ -500,45 +491,78 @@ local function manaFrom(int, delta)
     return math.min(brk, int) + math.max(0, int - brk) * per
 end
 
+-- Several of these come back as secret numbers, and a secret is not a
+-- number: it can be shown but not added to. plain sends those back as
+-- nothing, which is how a row ends up reading as a dash rather than
+-- throwing in our name.
+local function unitTotal(fn, ...)
+    local f = rawget(_G, fn)
+    if type(f) ~= "function" then return nil end
+    local ok, a, b, c = pcall(f, ...)
+    if not ok then return nil end
+    a = plain(a)
+    if not a then return nil end
+    return a + (plain(b) or 0) + (plain(c) or 0)
+end
+
+-- label is the long form, short is what fits a lane; cur formats the
+-- total and fmt formats the change.
 local METRICS = {
-    { label = "Attack power", fmt = "%+.0f", calc = function(s)
+    { label = "Attack power", short = "AP", cur = "%.0f", fmt = "%+.0f",
+      now = function() return unitTotal("UnitAttackPower", "player") end,
+      calc = function(s)
         local a = call("GetAttackPowerForStat", IDX.str, s.str)
         local b = call("GetAttackPowerForStat", IDX.agi, s.agi)
         if not a and not b then return nil end
         return (a or 0) + (b or 0)
     end },
-    { label = "Ranged attack power", fmt = "%+.0f", calc = function(s)
+    { label = "Ranged attack power", short = "Ranged AP", cur = "%.0f", fmt = "%+.0f",
+      now = function() return unitTotal("UnitRangedAttackPower", "player") end,
+      calc = function(s)
         return call("GetRangedAttackPowerForStat", IDX.agi, s.agi)
     end },
-    { label = "Melee crit", fmt = "%+.2f%%", calc = function(s)
+    { label = "Melee crit", short = "Crit", cur = "%.1f%%", fmt = "%+.2f%%",
+      now = function() return call("GetCritChance") end,
+      calc = function(s)
         local v = call("GetCritChanceFromStat", IDX.agi, s.agi)
         return v and v * 100 or nil
     end },
-    { label = "Spell crit", fmt = "%+.2f%%", calc = function(s)
+    { label = "Spell crit", short = "Spell crit", cur = "%.1f%%", fmt = "%+.2f%%",
+      now = function() return call("GetSpellCritChance", 2) end,
+      calc = function(s)
         local v = call("GetSpellCritChanceFromStat", IDX.int, s.int)
         return v and v * 100 or nil
     end },
-    { label = "Health", fmt = "%+.0f", calc = function(s, delta) return healthFrom(s.sta, delta) end },
-    { label = "Mana", fmt = "%+.0f", calc = function(s, delta) return manaFrom(s.int, delta) end },
-    { label = "Armor from agility", fmt = "%+.0f", calc = function(s)
+    { label = "Health", short = "Health", cur = "%.0f", fmt = "%+.0f",
+      now = function() return unitTotal("UnitHealthMax", "player") end,
+      calc = function(s, delta) return healthFrom(s.sta, delta) end },
+    { label = "Mana", short = "Mana", cur = "%.0f", fmt = "%+.0f",
+      now = function() return unitTotal("UnitPowerMax", "player", 0) end,
+      calc = function(s, delta) return manaFrom(s.int, delta) end },
+    { label = "Armor from agility", short = "Armor/agi", cur = "%.0f", fmt = "%+.0f",
+      calc = function(s)
         local per = rawget(_G, "ARMOR_PER_AGILITY")
         if type(per) ~= "number" then return nil end
         return s.agi * per
     end },
 }
 
-function Doll:RefreshDerived(deltas, any)
-    if not any then
-        self.derived:SetText("")
-        return
-    end
-    -- Two ways to the same answer. If the client lets us read our own
-    -- stats as plain numbers, ask its conversions what they are worth now
-    -- and what they would be worth after, and subtract: that respects the
-    -- breakpoints exactly. If the stats come back secret we cannot do
-    -- that, so feed the conversions the change on its own. Every one of
-    -- them is linear above the first twenty points, which any character
-    -- past the starting zone is well clear of.
+-- What the client says these are now, and what our change would do to
+-- them. The total is the client's own reading rather than a conversion
+-- of ours run at the current stats: health from stamina is not your
+-- health, and printing it under the word Health would be a number that
+-- disagrees with the character sheet.
+function Doll:DerivedRows()
+    local deltas = self:Deltas()
+    local any = next(self.trying) ~= nil
+
+    -- Two ways to the same change. If the client lets us read our own
+    -- stats as plain numbers, ask its conversions what they are worth
+    -- now and what they would be worth after, and subtract: that
+    -- respects the breakpoints exactly. If the stats come back secret we
+    -- cannot do that, so feed the conversions the change on its own.
+    -- Every one of them is linear above the first twenty points, which
+    -- any character past the starting zone is well clear of.
     local now, exact = {}, true
     for _, key in ipairs(ns.Score.STAT_ORDER) do
         local v = plain(current(key))
@@ -549,31 +573,57 @@ function Doll:RefreshDerived(deltas, any)
         now[key] = v
     end
 
-    local lines = {}
+    local rows = {}
     for _, m in ipairs(METRICS) do
         local d
-        if exact then
-            local after = {}
-            for k, v in pairs(now) do after[k] = v + (deltas[k] or 0) end
-            local a, b = m.calc(now), m.calc(after)
-            if a and b then d = b - a end
-        else
-            d = m.calc(setmetatable({}, { __index = function(_, k)
-                return deltas[k] or 0
-            end }), true)
+        if any then
+            if exact then
+                local after = {}
+                for k, v in pairs(now) do after[k] = v + (deltas[k] or 0) end
+                local a, b = m.calc(now), m.calc(after)
+                if a and b then d = b - a end
+            else
+                d = m.calc(setmetatable({}, { __index = function(_, k)
+                    return deltas[k] or 0
+                end }), true)
+            end
         end
         -- Anything under a hundredth is rounding, not a change.
-        if d and math.abs(d) >= 0.005 then
-            lines[#lines + 1] = ("%s %s"):format(m.label, m.fmt:format(d))
+        if d and math.abs(d) < 0.005 then d = nil end
+
+        local total = m.now and m.now() or nil
+        if total or d then
+            rows[#rows + 1] = {
+                label = m.label,
+                short = m.short,
+                -- A dash where the client will not say. Any of these can
+                -- come back secret.
+                value = total and m.cur:format(total) or "-",
+                delta = d and m.fmt:format(d) or "",
+                change = d,
+            }
         end
     end
+    return rows
+end
 
-    if #lines == 0 then
-        self.derived:SetText("No change to anything the character sheet shows.")
-    else
-        self.derived:SetText(table.concat(lines, "\n"))
+function Doll:DrawDerived()
+    local rows = self:DerivedRows()
+    for i, row in ipairs(self.derivedRows) do
+        local r = rows[i]
+        if r then
+            row.label:SetText(r.short)
+            row.value:SetText(r.value)
+            tint(row.value, C.text)
+            row.delta:SetText(r.delta)
+            if r.change then
+                tint(row.delta, r.change > 0 and UP or DOWN)
+            end
+            row:Show()
+        else
+            row:Hide()
+        end
     end
-    tint(self.derived, C.muted)
 end
 
 -- ============================================================
@@ -613,94 +663,87 @@ function Doll:Build(pane)
     self.pane = pane
     self.slots = {}
 
-    -- Portrait. The column is narrow, so the doll stacks rather than
-    -- spreading: slots either side of the model, weapons beneath them,
-    -- then the stats. Measured off the pane so it stays centred if the
-    -- column is ever resized.
-    local GAP = 8
-    local W = tonumber(pane:GetWidth()) or 236
-    -- The slots are a fixed icon wide and the stat rows only have to be
-    -- legible, so spare width goes to the model. Capped, because past
-    -- about this the character is just large rather than clearer.
-    -- Whatever is left once the two slot columns and a small margin
-    -- have taken theirs, so the model grows with the column rather than
-    -- stopping at a number and leaving the rest as margin.
-    local MODEL_W = math.max(124, math.min(300, W - ICON * 2 - GAP * 2 - 12))
-    local block = ICON + GAP + MODEL_W + GAP + ICON
-    local x0 = math.max(4, math.floor((W - block) / 2))
-    local ROWS = math.max(#LEFT, #RIGHT)
-    local dollH = ROWS * (ICON + 6) - 6
+    -- Picker, character, slots, readings, bonuses: one column, top to
+    -- bottom. The model gets the whole width, because the picture of the
+    -- set is what the column is for.
+    local W = tonumber(pane:GetWidth()) or 324
+    local sw = W - 8
 
-    local function column(list, xOff)
-        local prev
-        for _, slotId in ipairs(list) do
-            local b = makeSlot(pane, slotId)
-            if prev then b:SetPoint("TOP", prev, "BOTTOM", 0, -6)
-            else b:SetPoint("TOPLEFT", pane, "TOPLEFT", xOff, -4) end
-            self.slots[slotId] = b
-            prev = b
-        end
-    end
-    column(LEFT, x0)
-    column(RIGHT, x0 + ICON + GAP + MODEL_W + GAP)
+    local pick = CreateFrame("Frame", nil, pane)
+    pick:SetPoint("TOPLEFT", 4, -2)
+    pick:SetSize(sw, PICK_H)
+    local back = Chrome:Button(pick, "<", 22, 18)
+    back:SetPoint("LEFT")
+    local fwd = Chrome:Button(pick, ">", 22, 18)
+    fwd:SetPoint("RIGHT")
+    back:SetScript("OnClick", function() Doll:StepSet(-1) end)
+    fwd:SetScript("OnClick", function() Doll:StepSet(1) end)
+    self.setLabel = Chrome:Text(pick, 11, C.fel)
+    self.setLabel:SetPoint("LEFT", back, "RIGHT", 6, 0)
+    self.setLabel:SetPoint("RIGHT", fwd, "LEFT", -6, 0)
+    self.setLabel:SetJustifyH("CENTER")
+    self.setPick = pick
 
     local m = CreateFrame("DressUpModel", nil, pane)
-    m:SetPoint("TOPLEFT", x0 + ICON + GAP, -4)
-    m:SetSize(MODEL_W, dollH)
+    m:SetPoint("TOPLEFT", 4, -(PICK_H + 4))
+    m:SetSize(sw, MODEL_H)
     self.model = m
 
-    -- The weapons, centred under the doll.
-    local underW = #UNDER * ICON + (#UNDER - 1) * 6
-    local ux = math.max(4, math.floor((W - underW) / 2))
-    local underY = -(4 + dollH + 8)
+    -- One strip rather than two columns: what you have on, what you are
+    -- trying, and somewhere to drop a piece from the list.
+    local stripY = -(PICK_H + 4 + MODEL_H + 8)
+    local STRIP = ns.Score.SLOT_ORDER
+    local stripW = #STRIP * SLOT + (#STRIP - 1)
+    local sx = math.max(4, math.floor((W - stripW) / 2))
     local prev
-    for _, slotId in ipairs(UNDER) do
-        local b = makeSlot(pane, slotId)
-        if prev then b:SetPoint("LEFT", prev, "RIGHT", 6, 0)
-        else b:SetPoint("TOPLEFT", ux, underY) end
+    for _, slotId in ipairs(STRIP) do
+        local b = makeSlot(pane, slotId, SLOT)
+        if prev then b:SetPoint("LEFT", prev, "RIGHT", 1, 0)
+        else b:SetPoint("TOPLEFT", sx, stripY) end
         self.slots[slotId] = b
         prev = b
     end
 
-    -- Stats below the doll, across the full column.
-    local sy = underY - ICON - 12
-    local sw = W - 8
-    self.statRows = {}
-    for i = 1, #ns.Score.STAT_ORDER do
+    -- Two lanes of readings. A row is label, total, change, and the
+    -- lanes are measured off the column so they hold at any width.
+    local colW = math.floor(sw / 2)
+    local sy = stripY - SLOT - 10
+    local function readout(i, x)
         local row = CreateFrame("Frame", nil, pane)
-        row:SetSize(sw, 16)
-        row:SetPoint("TOPLEFT", 4, sy - (i - 1) * 17)
-        -- Off the column rather than at offsets that suited one width.
-        row.label = Chrome:Text(row, 11, C.muted)
+        row:SetSize(colW - 4, STAT_H - 1)
+        row:SetPoint("TOPLEFT", x, sy - (i - 1) * STAT_H)
+        row.label = Chrome:Text(row, 10, C.muted)
         row.label:SetPoint("LEFT")
-        row.value = Chrome:Text(row, 11)
-        row.value:SetPoint("LEFT", math.floor(sw * 0.42), 0)
-        row.delta = Chrome:Text(row, 11)
-        row.delta:SetPoint("LEFT", math.floor(sw * 0.66), 0)
-        self.statRows[i] = row
+        row.value = Chrome:Text(row, 10)
+        row.value:SetPoint("LEFT", math.floor(colW * 0.40), 0)
+        row.delta = Chrome:Text(row, 10)
+        row.delta:SetPoint("LEFT", math.floor(colW * 0.72), 0)
+        return row
+    end
+    self.statRows = {}
+    for i = 1, #ns.Score.STAT_ORDER do self.statRows[i] = readout(i, 4) end
+    self.derivedRows = {}
+    for i = 1, DERIVED_ROWS do
+        local row = readout(i, 4 + colW)
+        row:Hide()
+        self.derivedRows[i] = row
     end
 
-    local fy = sy - #ns.Score.STAT_ORDER * 17 - 8
-    self.summary = Chrome:Text(pane, 12, C.muted)
+    local fy = sy - math.max(#ns.Score.STAT_ORDER, DERIVED_ROWS) * STAT_H - 6
+    self.summary = Chrome:Text(pane, 11, C.muted)
     self.summary:SetPoint("TOPLEFT", 4, fy)
     self.summary:SetWidth(sw)
     self.summary:SetJustifyH("LEFT")
 
-    self.derived = Chrome:Text(pane, 10, C.muted)
-    self.derived:SetPoint("TOPLEFT", 4, fy - 26)
-    self.derived:SetWidth(sw)
-    self.derived:SetJustifyH("LEFT")
-
-    -- Earned set bonuses, under the summary. Only what you have
+    -- Earned set bonuses, under the readings. Only what you have
     -- actually got: an unearned bonus is not information about your
-    -- character, and the tooltip carries the full list.
-    -- The bonuses are as long as the gear makes them, so rather than
-    -- sizing the window for a worst case almost nobody is in, they take
-    -- whatever is left under the derived lines and scroll inside it.
-    -- The top is anchored in RefreshStats, off the text above.
+    -- character, and the tooltip carries the full list. It takes
+    -- whatever is left at the bottom of the column and scrolls inside
+    -- it, since it is as long as the gear makes it.
     local setScroll = CreateFrame("ScrollFrame", nil, pane)
-    setScroll:SetPoint("BOTTOMLEFT", pane, "BOTTOMLEFT", 4, 4)
+    setScroll:SetPoint("TOPLEFT", 4, fy - 30)
     setScroll:SetPoint("RIGHT", pane, "RIGHT", -4, 0)
+    setScroll:SetPoint("BOTTOM", pane, "BOTTOM", 0, 4)
     setScroll:EnableMouseWheel(true)
     setScroll:SetScript("OnMouseWheel", function(f, delta)
         local inner = f:GetScrollChild()
@@ -724,12 +767,71 @@ function Doll:Build(pane)
     self.setInner = setInner
     self.setRows = {}
 
-    -- At the top, not the bottom: the column had twelve points spare
-    -- and the bonus lines need them, and a control belongs by the
-    -- heading rather than under a page of readings.
+    -- By the heading rather than under a page of readings.
     local reset = Chrome:Button(pane, "Take it all off", 104, 18)
     reset:SetPoint("TOPRIGHT", pane, "TOPRIGHT", -2, 20)
     reset:SetScript("OnClick", function() Doll:ClearAll() end)
 
     self:Refresh()
+end
+
+-- ============================================================
+-- The wardrobe
+-- ============================================================
+-- Paging through the sets the class can wear. Wearing one is the same
+-- try-on a right-click in the list does, so the readings underneath and
+-- the highlights beside it are the ones already there.
+
+function Doll:WearSet(name)
+    local _, groups = ns.Score:SetGroups()
+    local rows = name and groups[name]
+    if not rows then return 0 end
+    wipe(self.trying)
+    local worn, taken = 0, {}
+    for _, e in ipairs(rows) do
+        local info = ns.Score:Info(e.id)
+        -- One piece per slot. A set offering two rings is offering a
+        -- choice, and wearing both in the one slot the doll has is not
+        -- something the character could do.
+        if info and info.slot and ns.Score:Usable(info) and not taken[info.slot] then
+            taken[info.slot] = true
+            if self:TryOn(e.id, true) then worn = worn + 1 end
+        end
+    end
+    self.setOn = name
+    self:Changed()
+    return worn
+end
+
+function Doll:StepSet(dir)
+    local names = ns.Score:WearableSets()
+    if #names == 0 then return end
+    local at = 0
+    for i, n in ipairs(names) do
+        if n == self.setOn then at = i break end
+    end
+    at = at + dir
+    if at < 1 then at = #names elseif at > #names then at = 1 end
+    self:WearSet(names[at])
+end
+
+function Doll:RefreshPicker()
+    if not self.setLabel then return end
+    local names = ns.Score:WearableSets()
+    local at
+    for i, n in ipairs(names) do
+        if n == self.setOn then at = i break end
+    end
+    if at then
+        self.setLabel:SetText(("%s  (%d of %d)"):format(self.setOn, at, #names))
+        tint(self.setLabel, C.fel)
+    elseif #names > 0 then
+        -- The column is already headed Wardrobe, so this says what the
+        -- arrows are for rather than saying it again.
+        self.setLabel:SetText(("Pick a set  (%d)"):format(#names))
+        tint(self.setLabel, C.muted)
+    else
+        self.setLabel:SetText("No sets for this class")
+        tint(self.setLabel, C.muted)
+    end
 end
