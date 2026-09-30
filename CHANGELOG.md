@@ -1,5 +1,12 @@
 # Wick's Gear
 
+## 0.9.6 (2026-09-30)
+
+### Changed
+
+- Group headings take the look's accent colour, so they change with the
+  look chosen in WickCore.
+
 ## 0.9.5 — 2026-09-24
 
 ### Added
