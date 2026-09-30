@@ -533,7 +533,7 @@ function UI:FillBrowse()
             -- list looked disabled for no reason.
             tint(head.left, C.text)
             tint(head.note2, C.muted)
-            head.left:SetText(("|cff4FC778%s|r"):format(group))
+            head.left:SetText(Chrome:Esc("fel") .. group .. "|r")
 
             -- Only a dungeon has a level bracket. A range worked out from
             -- the loot is not the dungeon's own, so it does not get to
