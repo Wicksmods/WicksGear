@@ -38,6 +38,14 @@ local DERIVED_ROWS = 8
 
 Doll.trying = {}   -- slot -> { id, link } or { empty = true }
 
+-- What a slot shows: the piece being tried on, nothing when a two-hander
+-- has emptied it, and only otherwise what the character is wearing. An
+-- `or` here used to fall through an emptied slot to the real off hand.
+local function shownLink(trying, slotId)
+    if trying then return trying.link end
+    return GetInventoryItemLink("player", slotId)
+end
+
 -- An entry of { empty = true } means this slot is deliberately bare in
 -- the comparison, which is different from not trying anything in it.
 local MAIN_HAND, OFF_HAND = 16, 17
@@ -74,9 +82,13 @@ local function makeSlot(parent, slotId, size)
 
     b:SetScript("OnEnter", function(s)
         local trying = Doll.trying[s.slotId]
-        local link = trying and trying.link or GetInventoryItemLink("player", s.slotId)
+        local link = shownLink(trying, s.slotId)
         GameTooltip:SetOwner(s, "ANCHOR_RIGHT")
-        if link then
+        if trying and trying.empty then
+            GameTooltip:SetText(ns.Score.SLOT_NAME[s.slotId] or "Slot")
+            GameTooltip:AddLine("Empty while a two-handed weapon is being tried on.", 0.5, 0.5, 0.5, true)
+            GameTooltip:AddLine("Right-click to put back what you wear here.", 0.5, 0.5, 0.5, true)
+        elseif link then
             -- What you are wearing is always cached, so that one can go
             -- straight to the game. A piece being tried on may be one
             -- this character has never met, which the game cannot
@@ -121,7 +133,7 @@ function Doll:Refresh()
     local S = ns.Score
     for slotId, b in pairs(self.slots) do
         local trying = self.trying[slotId]
-        local link = trying and trying.link or GetInventoryItemLink("player", slotId)
+        local link = shownLink(trying, slotId)
         if trying and trying.icon then
             b.icon:SetTexture(trying.icon)
         elseif link then

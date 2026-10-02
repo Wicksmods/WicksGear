@@ -346,6 +346,12 @@ local QUALITY_COLOR = {
 }
 
 function S:FillTooltip(tt, id, link)
+    -- No id means nothing of ours to describe; the client's call errors
+    -- on nil rather than answering, so it is not asked.
+    if not id then
+        if link then tt:SetHyperlink(link) end
+        return link ~= nil
+    end
     if self:Cached(id) and link then
         tt:SetHyperlink(link)
         return true
