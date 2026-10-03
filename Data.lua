@@ -238,8 +238,7 @@ ns.DUNGEONS = {
         },
     },
     ["Excavation Site: Wetlands"] = {
-        levels = "24-28",
-        levelsDerived = true,
+        levels = "24-29",
         zone = 16732,
         items = {
             { id = 273026, req = 26, how = "drop", from = "Shadetooth", name = "Garb of Florid Feathers", q = "rare", slot = "Chest", stats = { agi = 6, sta = 6, int = 13, armor = 105 }, ilvl = 31, cls = 4, sub = 2 },
