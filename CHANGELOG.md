@@ -1,5 +1,14 @@
 # Wick's Gear
 
+## Unreleased
+
+### Added
+
+- Excavation Site: Wetlands, the new Forever dungeon above Whelgar's dig. Nine
+  boss drops from Saltspine, Shadetooth and the Relic Guardian, and thirteen
+  quest rewards, all with stats. Wowhead's zone page has no drops for it yet,
+  so the boss items were checked against their own tooltips one by one.
+
 ## 0.9.6 (2026-09-30)
 
 ### Changed
